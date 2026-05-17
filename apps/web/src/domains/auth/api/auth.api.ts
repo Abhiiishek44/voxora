@@ -157,8 +157,8 @@ class AuthApi {
     return apiClient.get<VerifyInviteResponse>(`/memberships/verify-invite/${token}`);
   }
 
-  async forgotPassword(email: string): Promise<ForgotPasswordResponse> {
-    return apiClient.post<ForgotPasswordResponse>("/auth/forgot-password", { email });
+  async forgotPassword(email: string, verificationMethod: "link" | "otp" = "link"): Promise<ForgotPasswordResponse> {
+    return apiClient.post<ForgotPasswordResponse>("/auth/forgot-password", { email, verificationMethod });
   }
 
   async resetPassword(token: string, newPassword: string): Promise<ResetPasswordResponse> {
@@ -166,6 +166,10 @@ class AuthApi {
       token,
       newPassword
     });
+  }
+
+  async verifyResetToken(token: string): Promise<any> {
+    return apiClient.get(`/auth/reset-password/validate?token=${encodeURIComponent(token)}`);
   }
 
   async changePassword(currentPassword: string, newPassword: string): Promise<ChangePasswordResponse> {
@@ -177,6 +181,18 @@ class AuthApi {
 
   async verifyOTP(email: string, code: string, type: string): Promise<any> {
     return apiClient.post("/auth/verify-otp", { email, code, type });
+  }
+
+  async sendEmailVerification(email: string, verificationMethod: "link" | "otp"): Promise<any> {
+    return apiClient.post("/auth/send-email-verification", { email, verificationMethod });
+  }
+
+  async verifyEmailLink(token: string): Promise<any> {
+    return apiClient.get(`/auth/verify-email-link?token=${encodeURIComponent(token)}`);
+  }
+
+  async getEmailVerificationStatus(email: string): Promise<any> {
+    return apiClient.get(`/auth/email-verification-status?email=${encodeURIComponent(email)}`);
   }
 
   async resendOTP(email: string, type: string): Promise<any> {

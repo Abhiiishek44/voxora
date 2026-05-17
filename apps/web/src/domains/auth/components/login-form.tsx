@@ -15,10 +15,20 @@ import { Alert } from "@/shared/ui/alert";
 import { validateEmail, validateLoginForm } from "@/shared/lib/validation";
 import type { LoginPayload } from "../types/types";
 import Logo from "@/shared/components/logo";
+import { authApi } from "../api/auth.api";
+import { OTPInput } from "./otp-input.tsx";
+import { ResendOTPTimer } from "./resend-otp-timer.tsx";
+
+type VerificationMethod = "link" | "otp";
 
 export function LoginForm() {
   const { mutate: login, isPending, isError, error } = useLogin();
   const [showPassword, setShowPassword] = useState(false);
+  const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>("link");
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationOtp, setVerificationOtp] = useState("");
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [formData, setFormData] = useState<LoginPayload>({
     email: "",
     password: "",
@@ -89,6 +99,42 @@ export function LoginForm() {
     }
   };
 
+  const requiresEmailVerification =
+    isError && (error?.message || "").toLowerCase().includes("verify your email");
+
+  const handleSendVerification = async () => {
+    const emailError = validateEmail(formData.email);
+    if (emailError) {
+      setVerificationError(emailError);
+      return;
+    }
+
+    setIsSendingVerification(true);
+    setVerificationError(null);
+    try {
+      await authApi.sendEmailVerification(formData.email, verificationMethod);
+      setVerificationSent(true);
+    } catch (err: any) {
+      setVerificationError(err.message || "Failed to send verification.");
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
+
+  const handleVerifyLoginOtp = async (code: string) => {
+    setVerificationOtp(code);
+    setIsSendingVerification(true);
+    setVerificationError(null);
+    try {
+      await authApi.verifyOTP(formData.email, code, "email_verification");
+      login(formData);
+    } catch (err: any) {
+      setVerificationError(err.message || "Invalid or expired code.");
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
+
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="space-y-1">
@@ -107,6 +153,69 @@ export function LoginForm() {
               <AlertCircle className="h-4 w-4" />
               <span>{error?.message || "Login failed"}</span>
             </Alert>
+          )}
+
+          {requiresEmailVerification && (
+            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: "link" as const, label: "Verify using Email Link" },
+                  { value: "otp" as const, label: "Verify using OTP" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      setVerificationMethod(option.value);
+                      setVerificationSent(false);
+                      setVerificationOtp("");
+                      setVerificationError(null);
+                    }}
+                    className={`min-h-10 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+                      verificationMethod === option.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-background text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {verificationError && <p className="text-sm text-destructive">{verificationError}</p>}
+
+              {verificationSent && verificationMethod === "link" && (
+                <p className="text-sm text-muted-foreground">
+                  We sent a secure verification link. Open it, then sign in again.
+                </p>
+              )}
+
+              {verificationSent && verificationMethod === "otp" && (
+                <div className="space-y-4">
+                  <OTPInput
+                    value={verificationOtp}
+                    onChange={(value) => {
+                      setVerificationOtp(value);
+                      if (value.length === 6) handleVerifyLoginOtp(value);
+                    }}
+                    disabled={isSendingVerification}
+                  />
+                  <ResendOTPTimer onResend={handleSendVerification} disabled={isSendingVerification} />
+                </div>
+              )}
+
+              {!verificationSent && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleSendVerification}
+                  disabled={isSendingVerification}
+                >
+                  {isSendingVerification ? "Sending..." : verificationMethod === "otp" ? "Send OTP" : "Send Verification Link"}
+                </Button>
+              )}
+            </div>
           )}
 
           <div className="space-y-2">

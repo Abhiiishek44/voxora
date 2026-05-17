@@ -175,7 +175,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       items.push({ label, to: currentPath });
     });
 
-    return items;
+    return items.map((item) =>
+      item.to === "/dashboard/conversations"
+        ? { ...item, to: "/dashboard/conversations/inbox" }
+        : item,
+    );
   }, [location.pathname]);
 
   const searchResults = useMemo(() => {

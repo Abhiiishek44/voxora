@@ -14,12 +14,20 @@ export const authSchema = {
     organizationName: Joi.string().min(2).max(100),
   }).or("companyName", "organizationName"),
 
-  acceptInvite: Joi.object({
-    token: Joi.string().required(),
+  initiateSignup: Joi.object({
+    name: Joi.string().min(2).max(50).required(),
+    email: Joi.string().email().required(),
+  }),
+
+  completeSignup: Joi.object({
+    email: Joi.string().email().required(),
+    organizationName: Joi.string().min(2).max(100).required(),
+    password: Joi.string().min(8).required(),
   }),
 
   forgotPassword: Joi.object({
     email: Joi.string().email().required(),
+    verificationMethod: Joi.string().valid("link", "otp").default("link"),
   }),
 
   resetPassword: Joi.object({
@@ -27,8 +35,9 @@ export const authSchema = {
     newPassword: Joi.string().min(8).required(),
   }),
 
-  changePassword: Joi.object({
-    currentPassword: Joi.string().required(),
+  resetPasswordWithOTP: Joi.object({
+    email: Joi.string().email().required(),
+    code: Joi.string().length(6).required(),
     newPassword: Joi.string().min(8).required(),
   }),
 };

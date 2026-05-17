@@ -4,6 +4,7 @@ import LoginPage from "../domains/auth/pages/login/page";
 import SetupPage from "../domains/auth/pages/setup/page";
 import PasswordRecoveryPage from "../domains/auth/pages/password-recovery/page";
 import ResetPasswordPage from "../domains/auth/pages/reset-password/page";
+import VerifyEmailPage from "../domains/auth/pages/verify-email/page";
 import AcceptInvitePage from "../domains/auth/pages/accept-invite/page";
 import { SelectOrgPage } from "@/domains/auth/pages/select-org/page";
 import { DashboardHomePage } from "@/domains/dashboard/pages/page";
@@ -58,6 +59,10 @@ const router = createBrowserRouter([
         element: <ResetPasswordPage />,
     },
     {
+        path: "/auth/verify-email",
+        element: <VerifyEmailPage />,
+    },
+    {
         path: "/auth/accept-invite",
         element: <AcceptInvitePage />,
     },
@@ -80,6 +85,10 @@ const router = createBrowserRouter([
         ),
     },
 
+    {
+        path: "/dashboard/conversations",
+        element: <Navigate to="/dashboard/conversations/inbox" replace />,
+    },
     {
         path: "/dashboard/conversations/inbox",
         element: (

@@ -192,8 +192,8 @@ export function SignupForm() {
 
   return (
     <div className="w-full max-w-md mx-auto md:mx-0">
-      <div className="space-y-2 mb-10 text-center md:text-left">
-        <h2 className="text-3xl font-extrabold tracking-tight text-foreground">
+      <div className="space-y-2 mb-6 sm:mb-8 text-center md:text-left">
+        <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
           Create Account
         </h2>
         <p className="text-muted-foreground font-medium">
@@ -202,33 +202,33 @@ export function SignupForm() {
       </div>
 
       <div className="flex flex-col">
-        <div className="flex flex-col gap-8">
-          {/* Progress Section */}
-          <div className="space-y-4" aria-live="polite">
-            <div className="flex items-center justify-between text-[10px] tracking-widest uppercase font-bold text-muted-foreground/60">
-              <span className="flex items-center gap-2">
-                <span className="text-primary">Step {currentStep}</span>
-                <span className="opacity-30">/</span>
-                <span>{totalSteps}</span>
-              </span>
-              <span className="text-foreground/70">
-                {currentStep === 1 && "Your Details"}
-                {currentStep === 2 && "Verification"}
-                {currentStep === 3 && "Organization"}
-                {currentStep === 4 && "Set Password"}
-              </span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/20 border border-border/5">
-              <motion.div
-                className="h-full rounded-full bg-primary shadow-[0_0_12px_rgba(var(--primary),0.3)]"
-                initial={false}
-                animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
-                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              />
-            </div>
+        <div className="flex flex-col gap-5 sm:gap-7">
+          <div
+            className="grid grid-cols-4 gap-2"
+            aria-label={`Signup progress: ${currentStep} of ${totalSteps}`}
+            aria-live="polite"
+          >
+            {Array.from({ length: totalSteps }, (_, index) => {
+              const stepNumber = index + 1;
+              const isActive = currentStep >= stepNumber;
+
+              return (
+                <div
+                  key={stepNumber}
+                  className="h-1.5 overflow-hidden rounded-full border border-border/5 bg-muted/25"
+                >
+                  <motion.div
+                    className="h-full rounded-full bg-primary shadow-[0_0_12px_rgba(var(--primary),0.3)]"
+                    initial={false}
+                    animate={{ width: isActive ? "100%" : "0%" }}
+                    transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                </div>
+              );
+            })}
           </div>
 
-          <div className="relative flex-1 min-h-[340px] flex flex-col no-scrollbar overflow-y-auto pt-2">
+          <div className="relative flex-1 min-h-[220px] sm:min-h-[300px] flex flex-col no-scrollbar overflow-y-auto pt-2">
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -306,7 +306,8 @@ export function SignupForm() {
                   <div className="text-center space-y-2">
                     <ShieldCheck className="h-10 w-10 text-primary mx-auto opacity-80" />
                     <p className="text-sm text-muted-foreground">
-                      We've sent a 6-digit code to <span className="text-foreground font-bold">{formData.email}</span>
+                      We've sent a 6-digit code to{" "}
+                      <span className="text-foreground font-bold">{formData.email}</span>
                     </p>
                   </div>
                   <OTPInput value={otp} onChange={setOtp} disabled={isVerifying} />
@@ -379,7 +380,7 @@ export function SignupForm() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 px-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 px-1">
                     {passwordChecks.map((check) => (
                       <div
                         key={check.label}
@@ -387,7 +388,7 @@ export function SignupForm() {
                           }`}
                       >
                         <CheckCircle2 className={`h-3 w-3 ${check.isValid ? "opacity-100" : "opacity-40"}`} />
-                        <span className="text-[10px] font-medium tracking-tight whitespace-nowrap">{check.label}</span>
+                        <span className="text-[10px] font-medium tracking-tight">{check.label}</span>
                       </div>
                     ))}
                   </div>

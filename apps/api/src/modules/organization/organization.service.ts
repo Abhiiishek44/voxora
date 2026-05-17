@@ -2,6 +2,7 @@ import { Organization, Membership, MembershipRole, IOrganization, Widget } from 
 import { Types } from "mongoose";
 import { generateTokens } from "@shared/utils/auth";
 import crypto from "crypto";
+import { DEFAULT_WIDGET_SUGGESTIONS } from "@shared/constants/widget-defaults";
 
 export class OrganizationService {
     /**
@@ -15,7 +16,7 @@ export class OrganizationService {
         accessToken: string;
         refreshToken: string;
     }> {
-        const slug = data.slug ?? this.generateSlug(data.name);
+        const slug = data.slug ?? await this.generateAvailableSlug(data.name);
 
         // Check slug uniqueness
         const existing = await Organization.findOne({ slug });
@@ -43,12 +44,7 @@ export class OrganizationService {
             ai: { enabled: true, model: "gpt-4o-mini", fallbackToAgent: true, autoAssign: true, assignmentStrategy: "least-loaded" },
             conversation: { collectUserInfo: { name: true, email: true, phone: false } },
             features: { endUserDomAccess: true },
-            suggestions: [
-                { text: "What can you help me with?", showOutside: true },
-                { text: "I need help with my order", showOutside: false },
-                { text: "Talk to a human agent", showOutside: true },
-                { text: "What are your business hours?", showOutside: false },
-            ],
+            suggestions: DEFAULT_WIDGET_SUGGESTIONS,
             publicKey: crypto.randomBytes(16).toString("hex"),
         });
 
@@ -180,12 +176,29 @@ export class OrganizationService {
     // ─── Helpers ───
 
     static generateSlug(name: string): string {
-        return name
+        const slug = name
             .toLowerCase()
             .trim()
             .replace(/[^a-z0-9\s-]/g, "")
             .replace(/\s+/g, "-")
             .replace(/-+/g, "-")
+            .replace(/^-|-$/g, "")
             .substring(0, 50);
+
+        return slug || "organization";
+    }
+
+    static async generateAvailableSlug(name: string): Promise<string> {
+        const baseSlug = this.generateSlug(name);
+        let slug = baseSlug;
+        let suffix = 1;
+
+        while (await Organization.exists({ slug })) {
+            suffix += 1;
+            const suffixText = `-${suffix}`;
+            slug = `${baseSlug.substring(0, 50 - suffixText.length)}${suffixText}`;
+        }
+
+        return slug;
     }
 }

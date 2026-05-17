@@ -48,10 +48,9 @@ const DEFAULT_WIDGET_FORM_DATA: CreateWidgetData = {
     endUserDomAccess: false,
   },
   suggestions: [
-    { text: "What can you help me with?", showOutside: true },
-    { text: "I need help with my order", showOutside: false },
-    { text: "Talk to a human agent", showOutside: true },
-    { text: "What are your business hours?", showOutside: false },
+    { text: "Get help with a question", showOutside: true },
+    { text: "Learn about services", showOutside: false },
+    { text: "Contact support", showOutside: true },
   ],
 };
 

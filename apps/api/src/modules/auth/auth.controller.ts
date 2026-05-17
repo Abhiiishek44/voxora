@@ -38,6 +38,8 @@ export const initiateSignup = asyncHandler(async (req: Request, res: Response) =
   sendResponse(res, 200, true, result.message || "OTP sent", null);
 });
 
+
+
 export const completeSignup = asyncHandler(async (req: Request, res: Response) => {
   const result = await authService.completeSignup(req.body);
   if (!result.success) {
@@ -81,23 +83,14 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
 // ─── Password ─────────────────────────────────────────────────────────────────
 
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
-  const result = await authService.forgotPassword(req.body.email);
+  const result = await authService.forgotPassword(req.body.email, req.body.verificationMethod || "link");
   if (!result.success) {
     return sendError(res, 503, result.message || "Email is not configured");
   }
   sendResponse(res, 200, true, "If an account exists with this email, a verification code has been sent");
 });
 
-export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
-  const { email, code } = req.body;
-  const result = await authService.verifyOTP(email, code, "email_verification");
 
-  if (!result.success) {
-    return sendError(res, result.statusCode || 400, result.message || "Verification failed");
-  }
-
-  sendResponse(res, 200, true, "Email verified successfully");
-});
 
 export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
   const { email, code, type } = req.body;
@@ -131,6 +124,30 @@ export const resetPasswordWithOTP = asyncHandler(async (req: Request, res: Respo
 
   sendResponse(res, 200, true, "Password reset successful");
 });
+
+export const validateResetPasswordToken = asyncHandler(async (req: Request, res: Response) => {
+  const token = String(req.query.token || "");
+  const result = await authService.validatePasswordResetToken(token);
+
+  if (!result.success) {
+    return sendError(res, result.statusCode || 400, result.message || "Invalid reset link");
+  }
+
+  sendResponse(res, 200, true, "Reset link is valid");
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { token, newPassword } = req.body;
+  const result = await authService.resetPassword(token, newPassword);
+
+  if (!result.success) {
+    return sendError(res, result.statusCode || 400, result.message || "Failed to reset password");
+  }
+
+  sendResponse(res, 200, true, "Password reset successful");
+});
+
+
 
 export const refreshToken = asyncHandler(async (req: Request, res: Response) => {
   sendError(res, 501, "Refresh token endpoint not yet implemented");
