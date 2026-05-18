@@ -43,10 +43,8 @@ export class AuthService {
     });
     await user.save();
 
-    // Create the organization + owner membership
-    const slug = await OrganizationService.generateAvailableSlug(data.organizationName);
-    const organization = new Organization({ name: data.organizationName, slug });
-    await organization.save();
+    // Create the organization + owner membership with retry on slug conflict
+    const organization = await this._createOrganizationWithRetry(data.organizationName);
 
     await Membership.create({
       userId: user._id,
@@ -162,10 +160,8 @@ export class AuthService {
     user.isActive = true;
     await user.save();
 
-    // Create the organization
-    const slug = await OrganizationService.generateAvailableSlug(data.organizationName);
-    const organization = new Organization({ name: data.organizationName, slug });
-    await organization.save();
+    // Create the organization with retry on slug conflict
+    const organization = await this._createOrganizationWithRetry(data.organizationName);
 
     // Create Membership (Owner)
     await Membership.create({
@@ -462,6 +458,9 @@ export class AuthService {
     user.otp = undefined;
     await user.save();
 
+    // Revoke all active sessions for security
+    await this._revokeAllUserSessions(user._id.toString());
+
     return { success: true };
   }
 
@@ -508,6 +507,9 @@ export class AuthService {
     user.otp = undefined;
     await user.save();
 
+    // Revoke all active sessions for security
+    await this._revokeAllUserSessions(user._id.toString());
+
     return { success: true };
   }
 
@@ -534,8 +536,59 @@ export class AuthService {
     );
   }
 
+  private async _revokeAllUserSessions(userId: string): Promise<void> {
+    try {
+      const pattern = `org:*:refresh_token:${userId}`;
+      const keys: string[] = [];
+      
+      // Use SCAN to find all matching keys
+      for await (const key of redisClient.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+        keys.push(key);
+      }
+      
+      // Delete all found keys
+      if (keys.length > 0) {
+        await redisClient.del(keys);
+      }
+    } catch (error) {
+      // Log error but don't fail the password reset
+      console.error("Failed to revoke user sessions:", error);
+    }
+  }
+
   private _hashResetToken(token: string) {
     return crypto.createHash("sha256").update(token).digest("hex");
+  }
+
+  /**
+   * Create organization with automatic retry on slug conflicts.
+   * Handles race conditions by catching duplicate key errors.
+   */
+  private async _createOrganizationWithRetry(name: string, maxAttempts = 3): Promise<any> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const slug = await OrganizationService.generateAvailableSlug(name);
+        const organization = new Organization({ name, slug });
+        await organization.save();
+        return organization;
+      } catch (error: any) {
+        lastError = error;
+        
+        // Check if it's a duplicate key error (MongoDB error code 11000)
+        if (error.code === 11000 && attempt < maxAttempts) {
+          // Retry with a small delay to reduce collision probability
+          await new Promise(resolve => setTimeout(resolve, 50 * attempt));
+          continue;
+        }
+        
+        // If not a duplicate error or max attempts reached, throw
+        throw error;
+      }
+    }
+    
+    throw lastError || new Error("Failed to create organization after multiple attempts");
   }
 
   // ─────────────────────────────────────────────────────────────────

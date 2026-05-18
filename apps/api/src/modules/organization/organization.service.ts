@@ -16,16 +16,37 @@ export class OrganizationService {
         accessToken: string;
         refreshToken: string;
     }> {
-        const slug = data.slug ?? await this.generateAvailableSlug(data.name);
+        let slug = data.slug ?? await this.generateAvailableSlug(data.name);
 
-        // Check slug uniqueness
-        const existing = await Organization.findOne({ slug });
-        if (existing) {
-            throw new Error(`Organization slug "${slug}" is already taken`);
+        let organization: IOrganization;
+        const maxAttempts = 3;
+        let lastError: Error | null = null;
+
+        // Retry logic to handle race conditions on slug conflicts
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                organization = new Organization({ name: data.name, slug });
+                await organization.save();
+                break; // Success, exit retry loop
+            } catch (error: any) {
+                lastError = error;
+                
+                // Check if it's a duplicate key error (MongoDB error code 11000)
+                if (error.code === 11000 && attempt < maxAttempts) {
+                    // Regenerate slug and retry
+                    slug = await this.generateAvailableSlug(data.name);
+                    await new Promise(resolve => setTimeout(resolve, 50 * attempt));
+                    continue;
+                }
+                
+                // If not a duplicate error or max attempts reached, throw
+                throw error;
+            }
         }
 
-        const organization = new Organization({ name: data.name, slug });
-        await organization.save();
+        if (!organization!) {
+            throw lastError || new Error("Failed to create organization after multiple attempts");
+        }
 
         // Auto-create a default widget for the new organization
         await Widget.create({
@@ -73,7 +94,6 @@ export class OrganizationService {
 
         return { organization, accessToken, refreshToken };
     }
-
     /**
      * List all organizations a user belongs to (with role info).
      */

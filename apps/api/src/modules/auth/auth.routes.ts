@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as AuthController from "./auth.controller";
-import { authenticate, validateRequest, loginRateLimit, signupRateLimit, otpRateLimit } from "@shared/middleware";
+import { authenticate, validateRequest, loginRateLimit, signupRateLimit, otpRateLimit, passwordResetRateLimit } from "@shared/middleware";
 import { authSchema } from "./auth.schema";
 
 const router = Router();
@@ -49,10 +49,11 @@ router.post(
 
 
 // ─── Password Reset ───────────────────────────────────────────────────────────
-router.post("/forgot-password", validateRequest(authSchema.forgotPassword), AuthController.forgotPassword);
-router.get("/reset-password/validate", AuthController.validateResetPasswordToken);
+router.post("/forgot-password", passwordResetRateLimit, validateRequest(authSchema.forgotPassword), AuthController.forgotPassword);
+router.get("/reset-password/validate", passwordResetRateLimit, AuthController.validateResetPasswordToken);
 router.post(
   "/reset-password",
+  passwordResetRateLimit,
   validateRequest(authSchema.resetPassword),
   AuthController.resetPassword,
 );

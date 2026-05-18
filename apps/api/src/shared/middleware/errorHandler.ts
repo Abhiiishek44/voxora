@@ -44,6 +44,14 @@ export const otpRateLimit = rateLimit({
   legacyHeaders: false,
 });
 
+export const passwordResetRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 requests per 15 minutes
+  message: { success: false, message: "Too many password reset attempts, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export const billingWebhookRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 60,

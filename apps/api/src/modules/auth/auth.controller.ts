@@ -87,7 +87,7 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
   if (!result.success) {
     return sendError(res, 503, result.message || "Email is not configured");
   }
-  sendResponse(res, 200, true, "If an account exists with this email, a verification code has been sent");
+  sendResponse(res, 200, true, "If an account exists with this email, reset instructions have been sent");
 });
 
 
