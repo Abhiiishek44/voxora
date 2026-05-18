@@ -18,34 +18,11 @@ export class OrganizationService {
     }> {
         let slug = data.slug ?? await this.generateAvailableSlug(data.name);
 
-        let organization: IOrganization;
-        const maxAttempts = 3;
-        let lastError: Error | null = null;
+        const organization = new Organization({ name: data.name, slug });
+        await organization.save();
 
-        // Retry logic to handle race conditions on slug conflicts
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                organization = new Organization({ name: data.name, slug });
-                await organization.save();
-                break; // Success, exit retry loop
-            } catch (error: any) {
-                lastError = error;
-                
-                // Check if it's a duplicate key error (MongoDB error code 11000)
-                if (error.code === 11000 && attempt < maxAttempts) {
-                    // Regenerate slug and retry
-                    slug = await this.generateAvailableSlug(data.name);
-                    await new Promise(resolve => setTimeout(resolve, 50 * attempt));
-                    continue;
-                }
-                
-                // If not a duplicate error or max attempts reached, throw
-                throw error;
-            }
-        }
-
-        if (!organization!) {
-            throw lastError || new Error("Failed to create organization after multiple attempts");
+        if (!organization) {
+            throw new Error("Failed to create organization");
         }
 
         // Auto-create a default widget for the new organization
