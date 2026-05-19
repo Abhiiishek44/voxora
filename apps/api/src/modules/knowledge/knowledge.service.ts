@@ -1,8 +1,9 @@
+import { randomUUID } from "crypto";
 import StorageService from "@modules/storage/storage.service";
-import { Knowledge, Notification } from "@shared/models";
+import { Knowledge } from "@shared/models";
 import { ingestionQueue } from "@shared/config/queue";
 import logger from "@shared/utils/logger";
-import { getSocketManager } from "../../sockets/index";
+import NotificationService from "@modules/notification/notification.service";
 
 class KnowledgeService {
   /**
@@ -62,6 +63,8 @@ class KnowledgeService {
 
     if (!doc) return null;
 
+    const notificationRunId = randomUUID();
+
     await ingestionQueue.add("ingest", {
       documentId: String(doc._id),
       organizationId,
@@ -71,24 +74,19 @@ class KnowledgeService {
       fileName: doc.fileName!,
       title: doc.title,
       catalog: doc.catalog,
+      notificationRunId,
+      notificationCompletionType: "KNOWLEDGE_UPLOAD_COMPLETED",
+      notificationFailureType: "KNOWLEDGE_INGESTION_FAILED",
     });
 
     logger.info("✅ Knowledge document confirmed & queued", { documentId, organizationId });
-    
-    const notif = await Notification.create({
-      organizationId,
-      type: "ai_sync",
-      title: "Knowledge Base Queued",
-      description: `'${doc.title}' has been added to the processing queue.`
-    });
 
-    getSocketManager()?.emitToOrg(organizationId, "notification", {
-      id: notif._id,
-      type: notif.type,
-      title: notif.title,
-      description: notif.description,
-      timestamp: notif.createdAt,
-      isRead: notif.isRead
+    await NotificationService.notifyKnowledgeEvent({
+      eventId: notificationRunId,
+      type: "KNOWLEDGE_UPLOAD_QUEUED",
+      organizationId,
+      documentId: String(doc._id),
+      title: doc.title,
     });
     return doc;
   }
@@ -126,6 +124,8 @@ class KnowledgeService {
       uploadedBy: createdBy,
     });
 
+    const notificationRunId = randomUUID();
+
     await ingestionQueue.add("ingest", {
       documentId: String(doc._id),
       organizationId,
@@ -140,24 +140,19 @@ class KnowledgeService {
       fetchMode: data.fetchMode,
       crawlDepth: data.crawlDepth,
       syncFrequency: data.syncFrequency,
+      notificationRunId,
+      notificationCompletionType: "KNOWLEDGE_UPLOAD_COMPLETED",
+      notificationFailureType: "KNOWLEDGE_INGESTION_FAILED",
     });
 
     logger.info("📝 Knowledge text/URL entry created & queued", { documentId: String(doc._id), organizationId, title: doc.title });
-    
-    const notif = await Notification.create({
-      organizationId,
-      type: "ai_sync",
-      title: "Knowledge Base Queued",
-      description: `'${doc.title}' has been added to the processing queue.`
-    });
 
-    getSocketManager()?.emitToOrg(organizationId, "notification", {
-      id: notif._id,
-      type: notif.type,
-      title: notif.title,
-      description: notif.description,
-      timestamp: notif.createdAt,
-      isRead: notif.isRead
+    await NotificationService.notifyKnowledgeEvent({
+      eventId: notificationRunId,
+      type: "KNOWLEDGE_UPLOAD_QUEUED",
+      organizationId,
+      documentId: String(doc._id),
+      title: doc.title,
     });
     return doc;
   }
@@ -183,6 +178,8 @@ class KnowledgeService {
     );
     if (!doc) return null;
 
+    const notificationRunId = randomUUID();
+
     await ingestionQueue.add("ingest", {
       documentId: String(doc._id),
       organizationId,
@@ -197,24 +194,19 @@ class KnowledgeService {
       fetchMode: doc.fetchMode,
       crawlDepth: doc.crawlDepth,
       syncFrequency: doc.syncFrequency,
+      notificationRunId,
+      notificationCompletionType: "KNOWLEDGE_REINDEX_COMPLETED",
+      notificationFailureType: "KNOWLEDGE_INGESTION_FAILED",
     });
 
     logger.info("🔄 Knowledge item re-queued for reindex", { documentId, organizationId });
-    
-    const notif = await Notification.create({
-      organizationId,
-      type: "ai_sync",
-      title: "Knowledge Base Re-queued",
-      description: `'${doc.title}' has been added back to the processing queue.`
-    });
 
-    getSocketManager()?.emitToOrg(organizationId, "notification", {
-      id: notif._id,
-      type: notif.type,
-      title: notif.title,
-      description: notif.description,
-      timestamp: notif.createdAt,
-      isRead: notif.isRead
+    await NotificationService.notifyKnowledgeEvent({
+      eventId: notificationRunId,
+      type: "KNOWLEDGE_REINDEX_STARTED",
+      organizationId,
+      documentId: String(doc._id),
+      title: doc.title,
     });
     return doc;
   }

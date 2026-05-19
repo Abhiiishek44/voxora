@@ -11,8 +11,8 @@ let socketManagerInstance: SocketManager | null = null;
 
 export class SocketManager {
   private io: Server;
-  // userId -> { socketId, orgId }
-  private connectedUsers = new Map<string, { socketId: string; orgId: string }>();
+  // userId -> { socketIds, orgId }
+  private connectedUsers = new Map<string, { socketIds: Set<string>; orgId: string }>();
 
   constructor(server: any) {
     this.io = new Server(server, {
@@ -106,22 +106,41 @@ export class SocketManager {
       logger.info(`${isWidget ? 'Widget' : 'User'} connected: ${userId} (org: ${orgId})`);
 
       // Store connection in memory + Redis (org-scoped key)
-      this.connectedUsers.set(userId, { socketId: socket.id, orgId });
+      const existingConnection = this.connectedUsers.get(userId);
+      if (existingConnection) {
+        existingConnection.socketIds.add(socket.id);
+      } else {
+        this.connectedUsers.set(userId, { socketIds: new Set([socket.id]), orgId });
+      }
       redisClient.set(`org:${orgId}:socket:user:${userId}`, socket.id, { EX: 86400 }).catch(() => { });
 
       // Join the org room so we can broadcast org-wide events
       socket.join(`org:${orgId}`);
 
       if (!isWidget) {
+        const { orgRole } = socket.data.user;
+        socket.join(`role:${orgRole}`);
+        socket.join(`org:${orgId}:role:${orgRole}`);
+        socket.join(`user:${userId}`);
+        redisClient.sAdd(`socket:user:${userId}:sockets`, socket.id).catch(() => { });
+        redisClient.expire(`socket:user:${userId}:sockets`, 86400).catch(() => { });
         this.updateUserStatus(userId, "online");
       }
       handleMessage({ socket, io: this.io });
 
       socket.on("disconnect", () => {
         logger.info(`${isWidget ? 'Widget' : 'User'} disconnected: ${userId}`);
-        this.connectedUsers.delete(userId);
-        redisClient.del(`org:${orgId}:socket:user:${userId}`).catch(() => { });
+        const currentConnection = this.connectedUsers.get(userId);
+        currentConnection?.socketIds.delete(socket.id);
+        const stillConnected = !!currentConnection && currentConnection.socketIds.size > 0;
+        if (!stillConnected) {
+          this.connectedUsers.delete(userId);
+          redisClient.del(`org:${orgId}:socket:user:${userId}`).catch(() => { });
+        }
         if (!isWidget) {
+          redisClient.sRem(`socket:user:${userId}:sockets`, socket.id).catch(() => { });
+        }
+        if (!isWidget && !stillConnected) {
           this.updateUserStatus(userId, "offline");
         }
       });
@@ -182,7 +201,9 @@ export class SocketManager {
   public async emitToUser(userId: string, event: string, data: any): Promise<void> {
     const local = this.connectedUsers.get(userId);
     if (local) {
-      this.io.to(local.socketId).emit(event, data);
+      for (const socketId of local.socketIds) {
+        this.io.to(socketId).emit(event, data);
+      }
       return;
     }
     // Cross-instance: try all org:*:socket:user:<userId> patterns (scan)
@@ -199,6 +220,24 @@ export class SocketManager {
 
   public emitToAllUsers(event: string, data: any): void {
     this.io.emit(event, data);
+  }
+
+  public async isUserConnected(userId: string): Promise<boolean> {
+    const local = this.connectedUsers.get(userId);
+    if (local && local.socketIds.size > 0) return true;
+    try {
+      return (await redisClient.sCard(`socket:user:${userId}:sockets`)) > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  public async emitNotificationToUser(userId: string, data: any): Promise<boolean> {
+    const connected = await this.isUserConnected(userId);
+    if (!connected) return false;
+
+    this.io.to(`user:${userId}`).emit("notification", data);
+    return true;
   }
 }
 

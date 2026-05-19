@@ -38,6 +38,9 @@ export interface IngestionJobData {
   fetchMode?: "single" | "crawl";
   crawlDepth?: number;
   syncFrequency?: string;
+  notificationRunId?: string;
+  notificationCompletionType?: "KNOWLEDGE_UPLOAD_COMPLETED" | "KNOWLEDGE_REINDEX_COMPLETED";
+  notificationFailureType?: "KNOWLEDGE_INGESTION_FAILED";
 }
 
 export interface AnalyticsJobData {

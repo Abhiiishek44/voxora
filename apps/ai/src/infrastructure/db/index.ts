@@ -67,21 +67,4 @@ export const ContactModel =
   (mongoose.models["Contact"] as mongoose.Model<mongoose.Document> | undefined) ??
   mongoose.model("Contact", ContactSchema);
 
-const NotificationSchema = new mongoose.Schema(
-  {
-    organizationId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-    userId: { type: mongoose.Schema.Types.ObjectId, index: true },
-    type: { type: String, required: true },
-    title: { type: String, required: true },
-    description: { type: String, required: true },
-    isRead: { type: Boolean, default: false, index: true },
-    metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
-  },
-  { strict: false, timestamps: true },
-);
-
-export const NotificationModel =
-  (mongoose.models["Notification"] as mongoose.Model<mongoose.Document> | undefined) ??
-  mongoose.model("Notification", NotificationSchema);
-
 export { connectDB };

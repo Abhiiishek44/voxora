@@ -63,7 +63,7 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3002";
 
 interface Notification {
   id: string;
-  type: "assignment" | "ai_sync" | "administrative" | "system";
+  type: string;
   title: string;
   description: string;
   timestamp: Date;
@@ -207,10 +207,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       setNotifications(prev => [
         {
           ...newNotif,
-          timestamp: new Date(newNotif.timestamp || Date.now()),
-          isRead: false
+          id: newNotif.id || newNotif._id,
+          description: newNotif.message || newNotif.description || "",
+          timestamp: new Date(newNotif.createdAt || newNotif.timestamp || Date.now()),
+          isRead: newNotif.read === true || newNotif.isRead === true
         },
-        ...prev
+        ...prev.filter((item) => item.id !== (newNotif.id || newNotif._id))
       ].slice(0, 50)); // Keep last 50
     });
 
@@ -225,11 +227,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const fetchNotifications = async () => {
       try {
         const res = await apiClient.get<any>(`/notifications`);
-        if (res?.data?.data) {
-          setNotifications(res.data.data.map((n: any) => ({
+        const rows = Array.isArray(res?.data) ? res.data : res?.data?.data;
+        if (Array.isArray(rows)) {
+          setNotifications(rows.map((n: any) => ({
             ...n,
             id: n._id,
-            timestamp: new Date(n.createdAt || n.timestamp)
+            description: n.message || n.description || "",
+            timestamp: new Date(n.createdAt || n.timestamp),
+            isRead: n.status === "read" || n.read === true || n.isRead === true
           })));
         }
       } catch (err) {
@@ -264,6 +269,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     switch (type) {
       case "assignment": return <UserPlus className="h-4 w-4 text-blue-500" />;
       case "ai_sync": return <Bot className="h-4 w-4 text-purple-500" />;
+      case "KNOWLEDGE_UPLOAD_QUEUED":
+      case "KNOWLEDGE_UPLOAD_COMPLETED":
+      case "KNOWLEDGE_REINDEX_STARTED":
+      case "KNOWLEDGE_REINDEX_COMPLETED":
+      case "KNOWLEDGE_INGESTION_FAILED":
+        return <BookOpen className="h-4 w-4 text-purple-500" />;
       case "administrative": return <UserCheck className="h-4 w-4 text-emerald-500" />;
       default: return <Info className="h-4 w-4 text-gray-500" />;
     }

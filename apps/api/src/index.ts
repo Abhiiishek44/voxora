@@ -24,6 +24,10 @@ import { organizationRouter } from "@modules/organization";
 import { membershipRouter } from "@modules/membership";
 import { contactsRouter } from "@modules/contacts";
 import { notificationRouter } from "@modules/notification";
+import {
+  startKnowledgeNotificationSubscriber,
+  startRoleNotificationSubscriber,
+} from "@modules/notification";
 import { analyticsRouter } from "@modules/analytics/analytics.routes";
 
 class Application {
@@ -177,6 +181,8 @@ class Application {
 
       // Start AI response stream consumer (background loop)
       startAIResponseConsumer(this.socketManager);
+      await startKnowledgeNotificationSubscriber();
+  await startRoleNotificationSubscriber();
 
       // Initialize MinIO (non-blocking - log error but don't crash)
       initializeMinIO().catch((error) => {

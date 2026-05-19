@@ -13,6 +13,8 @@ export interface DocumentJob {
   mimeType: string;
    
   fileName: string;
+
+  title?: string;
    
   sourceUrl?: string;
    
@@ -23,6 +25,12 @@ export interface DocumentJob {
   crawlDepth?: number;
    
   syncFrequency?: string;
+
+  notificationRunId?: string;
+
+  notificationCompletionType?: "KNOWLEDGE_UPLOAD_COMPLETED" | "KNOWLEDGE_REINDEX_COMPLETED";
+
+  notificationFailureType?: "KNOWLEDGE_INGESTION_FAILED";
    
   metadata?: Record<string, unknown>;
 }

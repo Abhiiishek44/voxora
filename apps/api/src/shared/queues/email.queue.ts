@@ -8,6 +8,7 @@ import {
   buildWelcomeEmail,
   buildEmailVerificationOTPEmail,
   buildForgotPasswordOTPEmail,
+  buildNotificationEmail,
   type EmailOptions,
 } from "../utils/email";
 import { resolveFromEmail } from "../utils/email-sender";
@@ -32,7 +33,7 @@ const emailQueue = new Queue<EmailOptions>(EMAIL_QUEUE, {
 });
 
 async function enqueueEmail(
-  jobName: "invite" | "password_reset" | "welcome" | "email_verification_link" | "email_verification_otp" | "password_reset_otp",
+  jobName: "invite" | "password_reset" | "welcome" | "email_verification_link" | "email_verification_otp" | "password_reset_otp" | "notification",
   payload: { to: string; subject: string; html: string; text?: string },
 ): Promise<void> {
   const from = await resolveFromEmail();
@@ -103,6 +104,24 @@ export async function enqueueForgotPasswordOTPEmail(
   if (!isEmailEnabled()) return false;
   const { subject, html } = await buildForgotPasswordOTPEmail(name, otp);
   await enqueueEmail("password_reset_otp", { to, subject, html });
+  return true;
+}
+
+export async function enqueueNotificationEmail(
+  to: string,
+  name: string,
+  title: string,
+  message: string,
+  status = "Notification",
+): Promise<boolean> {
+  if (!isEmailEnabled()) return false;
+  const { subject, html, text } = await buildNotificationEmail({
+    name,
+    title,
+    message,
+    status,
+  });
+  await enqueueEmail("notification", { to, subject, html, text });
   return true;
 }
 

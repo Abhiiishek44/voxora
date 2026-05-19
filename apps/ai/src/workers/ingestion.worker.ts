@@ -6,12 +6,11 @@ import { runUrlIngestionPipeline } from "../modules/ingestion/pipelines/url.pipe
 import { runTextIngestionPipeline } from "../modules/ingestion/pipelines/text.pipeline";
 import { vectorStore } from "../infrastructure/vector";
 import { connectDB, KnowledgeModel } from "../infrastructure/db";
-import { NotificationModel } from "../infrastructure/db";
 import { getBullMQConnection } from "../infrastructure/queue/bullmq.client";
 import { getSyncDelay } from "../modules/ingestion/utils/sync-delays";
-import { cacheRedis, pubsubRedis } from "../infrastructure/cache/redis.client";
-import { Emitter } from "@socket.io/redis-emitter";
+import { cacheRedis } from "../infrastructure/cache/redis.client";
 import logger from "../utils/logger";
+import { publishKnowledgeNotificationEvent } from "../infrastructure/events/knowledge-notification.publisher";
 
 export const INGESTION_QUEUE = "document-ingestion";
 const URL_LOCK_TTL_SECONDS = parseInt(process.env.URL_INGEST_LOCK_TTL_SECONDS || "3600", 10);
@@ -20,7 +19,7 @@ const LOCK_RETRY_DELAY_MS = 60_000;
 export function startIngestionWorker() {
   const connection = getBullMQConnection();
 
-  
+
   const ingestionQueue = new Queue<DocumentJob>(INGESTION_QUEUE, {
     connection,
     defaultJobOptions: {
@@ -30,13 +29,13 @@ export function startIngestionWorker() {
       removeOnFail: 50,
     },
   });
-  
+
   const worker = new Worker<DocumentJob, void, string>(
     INGESTION_QUEUE,
     async (job) => {
       const { source, jobType } = job.data;
 
-      
+
       if (jobType === "delete-vectors") {
         await vectorStore.deleteByDocumentId(job.data.documentId, job.data.organizationId);
         logger.info("Deleted document vectors", {
@@ -113,23 +112,13 @@ export function startIngestionWorker() {
       attemptsMade: job.attemptsMade,
     });
 
-    if (job.data.jobType !== "delete-vectors") {
-      await connectDB();
-      const notif = await (NotificationModel as any).create({
+    if (job.data.jobType !== "delete-vectors" && job.data.notificationCompletionType) {
+      await publishKnowledgeNotificationEvent({
+        eventId: job.data.notificationRunId,
+        type: job.data.notificationCompletionType,
         organizationId: job.data.organizationId,
-        type: "ai_sync",
-        title: "Knowledge Base Indexed",
-        description: `AI training completed for '${job.data.fileName || "Data Source"}'.`,
-      });
-
-      const ioEmitter = new Emitter(pubsubRedis);
-      ioEmitter.to(`org:${job.data.organizationId}`).emit("notification", {
-        id: notif._id,
-        type: notif.type,
-        title: notif.title,
-        description: notif.description,
-        timestamp: notif.createdAt,
-        isRead: notif.isRead
+        documentId: job.data.documentId,
+        title: job.data.title || job.data.fileName || "Knowledge source",
       });
     }
 
@@ -182,6 +171,9 @@ export function startIngestionWorker() {
         crawlDepth: doc.crawlDepth ?? job.data.crawlDepth,
         syncFrequency,
         fileName: doc.title || job.data.fileName,
+        title: doc.title || job.data.title,
+        notificationRunId: undefined,
+        notificationCompletionType: undefined,
       };
 
       if (!nextJob.sourceUrl) {
@@ -223,24 +215,17 @@ export function startIngestionWorker() {
       attemptsMade: job?.attemptsMade,
       error: err,
     });
-
-    if (job && job.data.jobType !== "delete-vectors") {
-      await connectDB();
-      const notif = await (NotificationModel as any).create({
+    if (job && job.data.jobType !== "delete-vectors" && job.data.notificationFailureType) {
+      await publishKnowledgeNotificationEvent({
+        eventId: job.data.notificationRunId,
+        type: job.data.notificationFailureType,
         organizationId: job.data.organizationId,
-        type: "ai_sync",
-        title: "Knowledge Sync Failed",
-        description: `Failed to index '${job.data.fileName || "Data Source"}'.`
-      });
-
-      const ioEmitter = new Emitter(pubsubRedis);
-      ioEmitter.to(`org:${job.data.organizationId}`).emit("notification", {
-        id: notif._id,
-        type: notif.type,
-        title: notif.title,
-        description: notif.description,
-        timestamp: notif.createdAt,
-        isRead: notif.isRead
+        documentId: job.data.documentId,
+        title: job.data.title || job.data.fileName || "Knowledge source",
+        message: `Failed to index '${job.data.title || job.data.fileName || "Knowledge source"}'.`,
+        metadata: {
+          error: err.message,
+        },
       });
     }
   });

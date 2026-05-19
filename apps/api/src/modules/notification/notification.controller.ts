@@ -20,6 +20,21 @@ class NotificationController {
     }
   }
 
+  async getUnreadCount(req: Request, res: Response) {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const organizationId = authReq.user.activeOrganizationId;
+      const userId = authReq.user.userId;
+
+      const unread = await NotificationService.getUnreadCount(organizationId, userId);
+
+      return sendSuccess(res, unread, "Unread notification count fetched successfully");
+    } catch (error: any) {
+      logger.error("Error fetching unread notification count:", error);
+      return sendError(res, 500, error.message);
+    }
+  }
+
   async markAsRead(req: Request, res: Response) {
     try {
       const authReq = req as AuthenticatedRequest;

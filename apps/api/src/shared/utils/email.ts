@@ -36,6 +36,16 @@ const DEFAULT_TEMPLATES = DEFAULT_EMAIL_TEMPLATES.reduce(
   {} as Record<EmailTemplateType, { subjectTemplate: string; htmlTemplate: string; textTemplate?: string }>,
 );
 
+const REQUIRED_TEMPLATE_TOKENS: Partial<Record<EmailTemplateType, string[]>> = {
+  invite: ["{{inviteUrl}}"],
+  password_reset: ["{{resetUrl}}"],
+  email_verification_link: ["{{verificationUrl}}"],
+  email_verification_otp: ["{{otp}}"],
+  password_reset_otp: ["{{otp}}"],
+  welcome: ["{{loginUrl}}"],
+  notification: ["{{actionUrl}}"],
+};
+
 /**
  * Returns true when EMAIL_PROVIDER is set to a real provider.
  * Used by callers to decide whether to enqueue an email job at all.
@@ -82,6 +92,21 @@ async function getTemplate(type: EmailTemplateType): Promise<{
 async function buildFromTemplate(type: EmailTemplateType, vars: TemplateVars): Promise<BuiltEmail> {
   try {
     const template = await getTemplate(type);
+    const requiredTokens = REQUIRED_TEMPLATE_TOKENS[type] ?? [];
+    const templateHasRequiredTokens = requiredTokens.every((token) =>
+      [template.subjectTemplate, template.htmlTemplate, template.textTemplate]
+        .filter(Boolean)
+        .some((content) => (content as string).includes(token)),
+    );
+
+    if (!templateHasRequiredTokens) {
+      const defaults = DEFAULT_TEMPLATES[type];
+      return {
+        subject: renderTemplate(defaults.subjectTemplate, vars),
+        html: renderTemplate(defaults.htmlTemplate, vars),
+        text: defaults.textTemplate ? renderTemplate(defaults.textTemplate, vars) : undefined,
+      };
+    }
 
     return {
       subject: renderTemplate(template.subjectTemplate, vars),
@@ -158,6 +183,24 @@ export async function buildWelcomeEmail(name: string, role: string): Promise<Bui
     name: escapeHtml(name),
     role: escapeHtml(role),
     loginUrl,
+  });
+}
+
+export async function buildNotificationEmail(input: {
+  name: string;
+  title: string;
+  message: string;
+  status?: string;
+  actionUrl?: string;
+  actionLabel?: string;
+}): Promise<BuiltEmail> {
+  return buildFromTemplate("notification", {
+    name: escapeHtml(input.name),
+    title: escapeHtml(input.title),
+    message: escapeHtml(input.message),
+    status: escapeHtml(input.status || "Notification"),
+    actionUrl: input.actionUrl || `${getClientUrl()}/dashboard`,
+    actionLabel: escapeHtml(input.actionLabel || "Open dashboard"),
   });
 }
 

@@ -11,5 +11,5 @@ export { BillingWebhookEvent, IBillingWebhookEvent } from "./BillingWebhookEvent
 export { BillingCheckoutIntent, IBillingCheckoutIntent } from "./BillingCheckoutIntent";
 export { UsageRecord, IUsageRecord } from "./UsageRecord";
 export { BillingSubscription, IBillingSubscription, SubscriptionStatus } from "./BillingSubscription";
-export { Notification, INotification } from "./Notification";
+export { Notification, INotification, NotificationType, NotificationStatus, NOTIFICATION_TYPES } from "./Notification";
 export { AnalyticsEvent, IAnalyticsEvent, AnalyticsEventType, AnalyticsEventChannel } from "./AnalyticsEvent";

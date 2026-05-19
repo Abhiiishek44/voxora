@@ -1,4 +1,5 @@
 import { Membership, User, MembershipRole, IMembership, Organization } from "@shared/models";
+import { publishRoleNotificationEvent } from "@modules/notification";
 import { Types } from "mongoose";
 import { enqueueInviteEmail } from "@shared/queues/email.queue";
 import crypto from "crypto";
@@ -91,6 +92,37 @@ export class MembershipService {
             inviteToken,
         );
 
+        const inviter = await User.findById(invitedByUserId).select("name email").lean();
+        const eventType =
+          data.role === "admin"
+            ? "ADMIN_INVITED"
+            : data.role === "agent"
+              ? "AGENT_INVITED"
+              : null;
+
+        if (eventType) {
+            await publishRoleNotificationEvent({
+                eventId: crypto.randomUUID(),
+                type: eventType,
+                organizationId,
+                actor: {
+                    id: invitedByUserId,
+                    name: inviter?.name || "Someone",
+                    email: inviter?.email || "",
+                    role: inviterMembership?.role,
+                },
+                target: {
+                    id: user._id.toString(),
+                    name: user.name,
+                    email: user.email,
+                    role: data.role,
+                },
+                metadata: {
+                    membershipId: membership._id.toString(),
+                },
+            });
+        }
+
         return { membership, inviteToken, emailSent };
     }
 
@@ -157,6 +189,50 @@ export class MembershipService {
         user.isActive = true;
         await user.save();
 
+                const eventType =
+                    membership.role === "admin"
+                        ? "ADMIN_INVITE_ACCEPTED"
+                        : membership.role === "agent"
+                            ? "AGENT_INVITE_ACCEPTED"
+                            : null;
+
+                if (eventType) {
+                        const inviter = membership.invitedBy
+                            ? await User.findById(membership.invitedBy).select("name email").lean()
+                            : null;
+                        const inviterMembership = membership.invitedBy
+                            ? await Membership.findOne({
+                                    userId: membership.invitedBy,
+                                    organizationId: membership.organizationId,
+                                })
+                                    .select("role")
+                                    .lean()
+                            : null;
+
+                        await publishRoleNotificationEvent({
+                                eventId: crypto.randomUUID(),
+                                type: eventType,
+                                organizationId: membership.organizationId.toString(),
+                                actor: inviter
+                                    ? {
+                                            id: membership.invitedBy?.toString() || "",
+                                            name: inviter.name || "Someone",
+                                            email: inviter.email || "",
+                                            role: inviterMembership?.role,
+                                        }
+                                    : undefined,
+                                target: {
+                                        id: user._id.toString(),
+                                        name: user.name,
+                                        email: user.email,
+                                        role: membership.role,
+                                },
+                                metadata: {
+                                        membershipId: membership._id.toString(),
+                                },
+                        });
+                }
+
         return { user, membership };
     }
 
@@ -220,11 +296,48 @@ export class MembershipService {
             }
         }
 
-        const membership = await Membership.findOneAndUpdate(
+                const previousRole = targetMembership.role;
+                const membership = await Membership.findOneAndUpdate(
             { _id: targetMemberId, organizationId },
             { role: newRole },
             { new: true },
         );
+
+                if (membership) {
+                        const actor = await User.findById(requestingUserId).select("name email").lean();
+                        const targetUser = await User.findById(membership.userId).select("name email").lean();
+                        const eventType =
+                            previousRole === "admin" || membership.role === "admin"
+                                ? "ADMIN_ROLE_CHANGED"
+                                : "AGENT_ROLE_CHANGED";
+
+                        await publishRoleNotificationEvent({
+                                eventId: crypto.randomUUID(),
+                                type: eventType,
+                                organizationId,
+                                actor: actor
+                                    ? {
+                                            id: requestingUserId,
+                                            name: actor.name || "Someone",
+                                            email: actor.email || "",
+                                            role: requester?.role,
+                                        }
+                                    : undefined,
+                                target: targetUser
+                                    ? {
+                                            id: membership.userId.toString(),
+                                            name: targetUser.name || "Member",
+                                            email: targetUser.email || "",
+                                            role: membership.role,
+                                        }
+                                    : undefined,
+                                previousRole,
+                                newRole: membership.role,
+                                metadata: {
+                                        membershipId: membership._id.toString(),
+                                },
+                        });
+                }
 
         return membership;
     }
@@ -259,11 +372,50 @@ export class MembershipService {
             throw new Error("Admins cannot modify owner status");
         }
 
-        const membership = await Membership.findOneAndUpdate(
+                const membership = await Membership.findOneAndUpdate(
             { _id: targetMemberId, organizationId },
             { inviteStatus: newStatus },
             { new: true },
         );
+
+                if (membership) {
+                        const actor = await User.findById(requestingUserId).select("name email").lean();
+                        const targetUser = await User.findById(membership.userId).select("name email").lean();
+                        const isAdmin = membership.role === "admin";
+                        const eventType = newStatus === "inactive"
+                            ? isAdmin
+                                ? "ADMIN_SUSPENDED"
+                                : "AGENT_SUSPENDED"
+                            : isAdmin
+                                ? "ADMIN_REACTIVATED"
+                                : "AGENT_REACTIVATED";
+
+                        await publishRoleNotificationEvent({
+                                eventId: crypto.randomUUID(),
+                                type: eventType,
+                                organizationId,
+                                actor: actor
+                                    ? {
+                                            id: requestingUserId,
+                                            name: actor.name || "Someone",
+                                            email: actor.email || "",
+                                            role: requester?.role,
+                                        }
+                                    : undefined,
+                                target: targetUser
+                                    ? {
+                                            id: membership.userId.toString(),
+                                            name: targetUser.name || "Member",
+                                            email: targetUser.email || "",
+                                            role: membership.role,
+                                        }
+                                    : undefined,
+                                metadata: {
+                                        membershipId: membership._id.toString(),
+                                        status: newStatus,
+                                },
+                        });
+                }
 
         return membership;
     }
@@ -293,7 +445,37 @@ export class MembershipService {
             }
         }
 
-        await Membership.findByIdAndDelete(targetMembership._id);
+                const targetUser = await User.findById(targetMembership.userId).select("name email").lean();
+
+                await Membership.findByIdAndDelete(targetMembership._id);
+
+                const actor = await User.findById(requestingUserId).select("name email").lean();
+                const eventType = targetMembership.role === "admin" ? "ADMIN_REMOVED" : "AGENT_REMOVED";
+
+                await publishRoleNotificationEvent({
+                        eventId: crypto.randomUUID(),
+                        type: eventType,
+                        organizationId,
+                        actor: actor
+                            ? {
+                                    id: requestingUserId,
+                                    name: actor.name || "Someone",
+                                    email: actor.email || "",
+                                    role: requester?.role,
+                                }
+                            : undefined,
+                        target: targetUser
+                            ? {
+                                    id: targetMembership.userId.toString(),
+                                    name: targetUser.name || "Member",
+                                    email: targetUser.email || "",
+                                    role: targetMembership.role,
+                                }
+                            : undefined,
+                        metadata: {
+                                membershipId: targetMembership._id.toString(),
+                        },
+                });
     }
 
     // ─── Helpers ───
