@@ -199,7 +199,7 @@ export async function buildNotificationEmail(input: {
     title: escapeHtml(input.title),
     message: escapeHtml(input.message),
     status: escapeHtml(input.status || "Notification"),
-    actionUrl: input.actionUrl || `${getClientUrl()}/dashboard`,
+    actionUrl: input.actionUrl || `${config.app.clientUrl}/dashboard`,
     actionLabel: escapeHtml(input.actionLabel || "Open dashboard"),
   });
 }

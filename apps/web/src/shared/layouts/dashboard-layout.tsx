@@ -231,9 +231,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         if (Array.isArray(rows)) {
           setNotifications(rows.map((n: any) => ({
             ...n,
-            id: n._id,
+            id: n._id || n.id,
             description: n.message || n.description || "",
-            timestamp: new Date(n.createdAt || n.timestamp),
+            timestamp: new Date(n.createdAt || n.timestamp || n.time || n.date || Date.now()),
             isRead: n.status === "read" || n.read === true || n.isRead === true
           })));
         }

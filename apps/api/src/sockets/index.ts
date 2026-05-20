@@ -112,7 +112,8 @@ export class SocketManager {
       } else {
         this.connectedUsers.set(userId, { socketIds: new Set([socket.id]), orgId });
       }
-      redisClient.set(`org:${orgId}:socket:user:${userId}`, socket.id, { EX: 86400 }).catch(() => { });
+      redisClient.sAdd(`socket:user:${userId}:sockets`, socket.id).catch(() => { });
+      redisClient.expire(`socket:user:${userId}:sockets`, 86400).catch(() => { });
 
       // Join the org room so we can broadcast org-wide events
       socket.join(`org:${orgId}`);
@@ -122,8 +123,6 @@ export class SocketManager {
         socket.join(`role:${orgRole}`);
         socket.join(`org:${orgId}:role:${orgRole}`);
         socket.join(`user:${userId}`);
-        redisClient.sAdd(`socket:user:${userId}:sockets`, socket.id).catch(() => { });
-        redisClient.expire(`socket:user:${userId}:sockets`, 86400).catch(() => { });
         this.updateUserStatus(userId, "online");
       }
       handleMessage({ socket, io: this.io });
@@ -135,11 +134,8 @@ export class SocketManager {
         const stillConnected = !!currentConnection && currentConnection.socketIds.size > 0;
         if (!stillConnected) {
           this.connectedUsers.delete(userId);
-          redisClient.del(`org:${orgId}:socket:user:${userId}`).catch(() => { });
         }
-        if (!isWidget) {
-          redisClient.sRem(`socket:user:${userId}:sockets`, socket.id).catch(() => { });
-        }
+        redisClient.sRem(`socket:user:${userId}:sockets`, socket.id).catch(() => { });
         if (!isWidget && !stillConnected) {
           this.updateUserStatus(userId, "offline");
         }
@@ -206,12 +202,16 @@ export class SocketManager {
       }
       return;
     }
-    // Cross-instance: try all org:*:socket:user:<userId> patterns (scan)
+    // Cross-instance fallback
     try {
-      const keys = await redisClient.keys(`org:*:socket:user:${userId}`);
-      if (keys.length > 0) {
-        const remoteSocketId = await redisClient.get(keys[0]);
-        if (remoteSocketId) this.io.to(remoteSocketId).emit(event, data);
+      const socketIds = await redisClient.sMembers(`socket:user:${userId}:sockets`);
+      for (const sid of socketIds) {
+        const sockets = await this.io.in(sid).fetchSockets();
+        if (sockets.length > 0) {
+          this.io.to(sid).emit(event, data);
+        } else {
+          redisClient.sRem(`socket:user:${userId}:sockets`, sid).catch(() => { });
+        }
       }
     } catch {
       logger.warn(`[SocketManager] Redis lookup failed for emitToUser(${userId})`);

@@ -60,6 +60,13 @@ function normalizeNotification(notification: INotification): NotificationPayload
   };
 }
 
+const UNREAD_CONDITION = {
+  $or: [
+    { status: "unread" },
+    { status: { $exists: false }, isRead: false },
+  ],
+};
+
 async function runWithOptionalTransaction<T>(
   work: (session?: mongoose.ClientSession) => Promise<T>,
 ): Promise<T> {
@@ -192,10 +199,7 @@ class NotificationService {
     const count = await Notification.countDocuments({
       organizationId,
       userId,
-      $or: [
-        { status: "unread" },
-        { status: { $exists: false }, isRead: false },
-      ],
+      ...UNREAD_CONDITION,
     });
 
     return { count };
@@ -214,10 +218,7 @@ class NotificationService {
       {
         organizationId,
         userId,
-        $or: [
-          { status: "unread" },
-          { status: { $exists: false }, isRead: false },
-        ],
+        ...UNREAD_CONDITION,
       },
       { $set: { status: "read", isRead: true } },
     );
@@ -278,13 +279,7 @@ class NotificationService {
     );
   }
 
-  private async queueEmails(
-    entries: Array<{ notification: INotification; recipient: RecipientUser }>,
-    emailRoles: Set<MembershipRole>,
-    message: string,
-  ): Promise<void> {
-    // Deprecated: use sendEmails instead.
-  }
+
 
   private async sendEmails(
     type: NotificationEvent["type"],
