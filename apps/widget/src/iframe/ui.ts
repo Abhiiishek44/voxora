@@ -1,5 +1,5 @@
 import { parseMarkdown, extractThoughtSteps } from './utils/markdown';
-import { state, DEFAULT_WIDGET_ICON_URL } from './config';
+import { state } from './config';
 import { INTERAONE_LOGO_SVG } from '../shared/assets';
 export { INTERAONE_LOGO_SVG };
 
@@ -177,20 +177,10 @@ export function escapeHtml(str: string) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function getAssistantIconUrl() {
-  const cfg = state._uiConfig || {};
-  const appearance = cfg.appearance || {};
-  return appearance.logoUrl || cfg.logoUrl || DEFAULT_WIDGET_ICON_URL;
-}
-
 export function renderAgentResponseIcon() {
-  const cfg = state._uiConfig || {};
-  const appearance = cfg.appearance || {};
-  const logoUrl = appearance.logoUrl || cfg.logoUrl;
-
   return `
     <div class="agent-response-icon" aria-hidden="true">
-      ${logoUrl ? `<img src="${escapeHtml(logoUrl)}" alt="" onerror="this.parentElement.innerHTML='${INTERAONE_LOGO_SVG.replace(/'/g, "\\'")}'" />` : INTERAONE_LOGO_SVG}
+      ${INTERAONE_LOGO_SVG}
     </div>
   `;
 }

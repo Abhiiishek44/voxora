@@ -40,7 +40,6 @@ export interface UserIdentity {
  */
 export interface WidgetAppearance {
   displayName?: string;
-  logoUrl?: string;
   primaryColor?: string;
   backgroundColor?: string;
   appearance?: {
@@ -49,7 +48,6 @@ export interface WidgetAppearance {
     position?: 'bottom-right' | 'bottom-left';
     launcherText?: string;
     welcomeMessage?: string;
-    logoUrl?: string;
   };
   behavior?: {
     autoOpen?: boolean;

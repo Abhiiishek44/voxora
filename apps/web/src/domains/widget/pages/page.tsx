@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSaveWidget, useWidget } from "@/domains/widget/hooks";
 import type { CreateWidgetData } from "@/domains/widget/types";
-import { storageApi } from "@/shared/lib/storage.api";
 import { validateWidgetForm } from "@/shared/lib/validation";
 import { toast } from "sonner";
 import { Loader } from "@/shared/ui/loader";
@@ -21,11 +20,9 @@ const CDN_URL =
 
 const DEFAULT_WIDGET_FORM_DATA: CreateWidgetData = {
   displayName: "",
-  logoUrl: "",
   appearance: {
     theme: "dark",
     welcomeMessage: "Hi there! How can we help you today?",
-    logoUrl: "",
   },
   behavior: {
     autoOpen: false,
@@ -63,7 +60,6 @@ function withWidgetDefaults(data: Partial<CreateWidgetData> | null | undefined):
     appearance: {
       ...DEFAULT_WIDGET_FORM_DATA.appearance,
       ...data.appearance,
-      logoUrl: data.appearance?.logoUrl || data.logoUrl || "",
     },
     behavior: {
       ...DEFAULT_WIDGET_FORM_DATA.behavior,
@@ -89,12 +85,7 @@ function withWidgetDefaults(data: Partial<CreateWidgetData> | null | undefined):
 
 export function WidgetPage() {
   const [isExistingWidget, setIsExistingWidget] = useState(false);
-  const [existingWidget, setExistingWidget] = useState<CreateWidgetData | null>(
-    null,
-  );
   const [isCopied, setIsCopied] = useState(false);
-  const [uploadedFileKey, setUploadedFileKey] = useState<string>("");
-  const [savedLogoUrl, setSavedLogoUrl] = useState<string>("");
   const [validationErrors, setValidationErrors] = useState<{
     displayName?: string;
   }>({});
@@ -108,10 +99,6 @@ export function WidgetPage() {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
-      appearance:
-        field === "logoUrl"
-          ? { ...prev.appearance, logoUrl: value }
-          : prev.appearance,
     }));
 
     if (validationErrors[field as keyof typeof validationErrors]) {
@@ -125,44 +112,8 @@ export function WidgetPage() {
   useEffect(() => {
     if (!widgetData?._id) return;
     setFormData(withWidgetDefaults(widgetData));
-    setExistingWidget(widgetData);
-    setUploadedFileKey(widgetData.logoFileKey || "");
-    setSavedLogoUrl(widgetData.logoUrl || "");
     setIsExistingWidget(true);
   }, [widgetData]);
-
-  const handleUploadSuccess = (data: {
-    fileKey: string;
-    downloadUrl: string;
-    fileName: string;
-  }) => {
-    setUploadedFileKey(data.fileKey);
-    setFormData((prev) => ({
-      ...prev,
-      logoUrl: data.downloadUrl,
-      appearance: {
-        ...prev.appearance,
-        logoUrl: data.downloadUrl,
-      },
-    }));
-    toast.success("Logo uploaded successfully!");
-  };
-
-  const handleUploadError = (error: string) => {
-    toast.error(error);
-  };
-
-  const handleFileRemove = () => {
-    setUploadedFileKey("");
-    setFormData((prev) => ({
-      ...prev,
-      logoUrl: "",
-      appearance: {
-        ...prev.appearance,
-        logoUrl: "",
-      },
-    }));
-  };
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -188,11 +139,7 @@ export function WidgetPage() {
     try {
       const widgetData = {
         displayName: formData.displayName,
-        logoUrl: formData.logoUrl || "",
-        appearance: {
-          ...formData.appearance,
-          logoUrl: formData.logoUrl || formData.appearance.logoUrl || "",
-        },
+        appearance: formData.appearance,
         behavior: formData.behavior,
         ai: formData.ai,
         conversation: formData.conversation,
@@ -206,26 +153,11 @@ export function WidgetPage() {
       });
 
       if (response.success) {
-        if (
-          isExistingWidget &&
-          existingWidget?.logoFileKey &&
-          uploadedFileKey &&
-          existingWidget.logoFileKey !== uploadedFileKey
-        ) {
-          try {
-            await storageApi.deleteStorageFile(existingWidget.logoFileKey);
-          } catch (error) {
-            console.error("Error deleting old logo:", error);
-          }
-        }
-
         toast.success(
           isExistingWidget
             ? "Widget updated successfully!"
             : "Widget created successfully!",
         );
-
-        setSavedLogoUrl(formData.logoUrl || "");
 
         setTimeout(() => {
           window.location.reload();
@@ -256,7 +188,6 @@ export function WidgetPage() {
 
   const handleResetDefaults = () => {
     setFormData(DEFAULT_WIDGET_FORM_DATA);
-    setUploadedFileKey("");
     setIsExistingWidget(false);
   };
 
@@ -283,11 +214,6 @@ export function WidgetPage() {
             validationErrors={validationErrors}
             onInputChange={handleInputChange}
             onSubmit={handleSubmit}
-            onUploadSuccess={handleUploadSuccess}
-            onUploadError={handleUploadError}
-            onFileRemove={handleFileRemove}
-            existingWidget={existingWidget}
-            savedLogoUrl={savedLogoUrl}
           />
 
           <WidgetAdvancedConfigForm

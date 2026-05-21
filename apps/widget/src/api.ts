@@ -29,7 +29,7 @@ export class WidgetAPI {
    * Fetch public widget appearance config.
    *
    * This is a public endpoint; no auth token needed.
-   * Returns branding values (displayName, logoUrl, primaryColor, backgroundColor).
+   * Returns widget display and behavior settings.
    * Called by the loader so it can:
    *   a) Apply branding to the floating button before the iframe loads.
    *   b) Forward the appearance via INIT_WIDGET to the iframe.

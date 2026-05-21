@@ -1,4 +1,4 @@
-import { state, PROTO_VERSION, DEFAULT_WIDGET_ICON_URL, API_BASE_URL } from './config';
+import { state, PROTO_VERSION, API_BASE_URL } from './config';
 import { elements, adjustTextareaHeight, renderMaximizeIcon, addMessage, showTyping, hideTyping, showOpenSkeleton, INTERAONE_LOGO_SVG } from './ui';
 import { bootstrapSession } from './api';
 import { initializeSocket } from './socket';
@@ -44,27 +44,12 @@ function applyWidgetAppearance(cfg: any) {
   if (brandLabel && cfg.displayName) brandLabel.textContent = `${cfg.displayName} Assistant`;
 
   if (input && !input.value) {
-    input.placeholder = 'Type @ to ask about this page';
+    input.placeholder = 'Ask InteraOne anything';
   }
 
-  const finalLogoUrl = appearance.logoUrl || cfg.logoUrl;
   if (avatar) {
     avatar.innerHTML = '';
-    if (finalLogoUrl) {
-      const img = document.createElement('img');
-      img.src = finalLogoUrl;
-      img.alt = (cfg.displayName || 'Logo') + ' logo';
-      img.style.width = '100%';
-      img.style.height = '100%';
-      img.style.objectFit = 'cover';
-      img.style.borderRadius = '8px';
-      img.onerror = function () {
-        avatar.innerHTML = INTERAONE_LOGO_SVG;
-      };
-      avatar.appendChild(img);
-    } else {
-      avatar.innerHTML = INTERAONE_LOGO_SVG;
-    }
+    avatar.innerHTML = INTERAONE_LOGO_SVG;
   }
 
 
@@ -183,7 +168,7 @@ async function handleInitWidget(payload: any) {
 
     if (elements.messageInput) {
       elements.messageInput.disabled = false;
-      elements.messageInput.placeholder = 'Type @ to ask about this page';
+      elements.messageInput.placeholder = 'Ask InteraOne anything';
     }
   });
 }

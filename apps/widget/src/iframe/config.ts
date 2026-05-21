@@ -1,6 +1,5 @@
 import { Socket } from "socket.io-client";
 
-export const DEFAULT_WIDGET_ICON_URL = ''; // Fallback to INTERAONE_LOGO_SVG in code
 export const PROTO_VERSION = '1';
 
 const RUNTIME_API_URL = '__API_URL_PRODUCTION__';

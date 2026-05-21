@@ -483,7 +483,7 @@ EOF
 NODE_ENV=production
 
 # MongoDB (service hostname: mongodb)
-MONGODB_URI=mongodb://admin:$MONGO_PASSWORD@mongodb:27017/InteraOne-chat?authSource=admin
+MONGODB_URI=mongodb://admin:$MONGO_PASSWORD@mongodb:27017/interaone?authSource=admin
 
 # Redis (service hostname: redis)
 REDIS_HOST=redis

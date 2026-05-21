@@ -135,7 +135,20 @@ export async function startAIResponseConsumer(socketManager: SocketManager): Pro
         metadata: { senderName: "AI Assistant", senderEmail: "ai@interaone.internal", source: "ai" },
       });
       await msg.save();
-      tracker.trackMessage(organizationId, "ai");
+      tracker.trackMessage(
+        organizationId,
+        "ai",
+        { messageLength: content.length },
+        { conversationId, channel: "widget" },
+      );
+
+      tracker.trackEvent(
+        organizationId,
+        "ai_response",
+        "ai",
+        { messageLength: content.length },
+        { conversationId, channel: "widget" },
+      );
 
       socketManager.emitToConversation(conversationId, "new_message", {
         conversationId,
@@ -200,7 +213,11 @@ export async function startAIResponseConsumer(socketManager: SocketManager): Pro
         .lean();
       if (!conv) return;
 
-      tracker.trackFallback(conv.organizationId.toString(), { reason });
+      tracker.trackFallback(
+        conv.organizationId.toString(),
+        { reason },
+        { conversationId, channel: "widget" },
+      );
 
       if (
         (conv as any).metadata?.escalatedAt
@@ -247,6 +264,14 @@ export async function startAIResponseConsumer(socketManager: SocketManager): Pro
           "metadata.escalationReason": reason,
         },
       });
+
+      tracker.trackEvent(
+        organizationId,
+        "agent_assigned",
+        "system",
+        { reason: "ai_fallback" },
+        { conversationId, agentId: assignment.agentId, channel: "widget" },
+      );
 
       socketManager.emitToConversation(conversationId, "conversation_escalated", {
         conversationId,
