@@ -45,6 +45,13 @@ export interface AnalyticsJobData {
   organizationId: string;
   category: "ai" | "agent" | "system";
   metadata?: Record<string, any>;
+  conversationId?: string;
+  userId?: string;
+  agentId?: string;
+  widgetId?: string;
+  channel?: "widget" | "web" | "api" | "qr";
+  occurredAt?: Date | string;
+  eventVersion?: string;
 }
 
 

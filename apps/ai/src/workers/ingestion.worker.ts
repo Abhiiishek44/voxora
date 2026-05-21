@@ -11,6 +11,7 @@ import { getBullMQConnection } from "../infrastructure/queue/bullmq.client";
 import { getSyncDelay } from "../modules/ingestion/utils/sync-delays";
 import { cacheRedis, pubsubRedis } from "../infrastructure/cache/redis.client";
 import { Emitter } from "@socket.io/redis-emitter";
+import logger from "../utils/logger";
 
 export const INGESTION_QUEUE = "document-ingestion";
 const URL_LOCK_TTL_SECONDS = parseInt(process.env.URL_INGEST_LOCK_TTL_SECONDS || "3600", 10);
@@ -38,9 +39,12 @@ export function startIngestionWorker() {
       
       if (jobType === "delete-vectors") {
         await vectorStore.deleteByDocumentId(job.data.documentId, job.data.organizationId);
-        console.log(
-          `[InteraOne AI] Deleted Qdrant vectors for documentId=${job.data.documentId}`,
-        );
+        logger.info("Deleted document vectors", {
+          jobId: job.id,
+          queue: INGESTION_QUEUE,
+          documentId: job.data.documentId,
+          organizationId: job.data.organizationId,
+        });
         return;
       }
 
@@ -59,11 +63,20 @@ export function startIngestionWorker() {
               removeOnFail: true,
             });
           } catch (err: any) {
-            console.warn(`[Ingestion Worker] Lock retry already scheduled for documentId=${job.data.documentId}`);
+            logger.warn("URL ingestion lock retry already scheduled", {
+              jobId: job.id,
+              queue: INGESTION_QUEUE,
+              documentId: job.data.documentId,
+              organizationId: job.data.organizationId,
+              error: err,
+            });
           }
-          console.log(
-            `[Ingestion Worker] URL ingestion skipped due to active lock (documentId=${job.data.documentId})`,
-          );
+          logger.info("URL ingestion skipped due to active lock", {
+            jobId: job.id,
+            queue: INGESTION_QUEUE,
+            documentId: job.data.documentId,
+            organizationId: job.data.organizationId,
+          });
           return;
         }
 
@@ -90,7 +103,15 @@ export function startIngestionWorker() {
   );
 
   worker.on("completed", async (job) => {
-    console.log(`[InteraOne AI] Job ${job.id} completed`);
+    logger.info("Ingestion job completed", {
+      jobId: job.id,
+      queue: INGESTION_QUEUE,
+      documentId: job.data.documentId,
+      organizationId: job.data.organizationId,
+      source: job.data.source,
+      jobType: job.data.jobType,
+      attemptsMade: job.attemptsMade,
+    });
 
     if (job.data.jobType !== "delete-vectors") {
       await connectDB();
@@ -131,16 +152,22 @@ export function startIngestionWorker() {
       ).lean();
 
       if (!doc) {
-        console.log(
-          `[Ingestion Worker] Document deleted, skipping re-crawl for documentId=${job.data.documentId}`,
-        );
+        logger.info("Skipping re-crawl because document was deleted", {
+          jobId: job.id,
+          queue: INGESTION_QUEUE,
+          documentId: job.data.documentId,
+          organizationId: job.data.organizationId,
+        });
         return;
       }
 
       if (doc.isPaused) {
-        console.log(
-          `[Ingestion Worker] Source is paused, skipping re-crawl schedule for documentId=${job.data.documentId}`,
-        );
+        logger.info("Skipping re-crawl because source is paused", {
+          jobId: job.id,
+          queue: INGESTION_QUEUE,
+          documentId: job.data.documentId,
+          organizationId: job.data.organizationId,
+        });
         return;
       }
 
@@ -158,9 +185,12 @@ export function startIngestionWorker() {
       };
 
       if (!nextJob.sourceUrl) {
-        console.log(
-          `[Ingestion Worker] Missing sourceUrl, skipping re-crawl for documentId=${job.data.documentId}`,
-        );
+        logger.warn("Skipping re-crawl because sourceUrl is missing", {
+          jobId: job.id,
+          queue: INGESTION_QUEUE,
+          documentId: job.data.documentId,
+          organizationId: job.data.organizationId,
+        });
         return;
       }
 
@@ -171,13 +201,29 @@ export function startIngestionWorker() {
       }
 
       await ingestionQueue.add("ingest", nextJob, { delay, jobId: recrawlJobId });
-      console.log(
-        `[Ingestion Worker] Re-crawl scheduled in ${delay / 60_000} min for ${nextJob.sourceUrl}`,
-      );
+      logger.info("Re-crawl scheduled", {
+        jobId: job.id,
+        queue: INGESTION_QUEUE,
+        recrawlJobId,
+        documentId: job.data.documentId,
+        organizationId: job.data.organizationId,
+        sourceUrl: nextJob.sourceUrl,
+        delayMs: delay,
+      });
     }
   });
   worker.on("failed", async (job, err) => {
-    console.error(`[Ingestion Worker] Job ${job?.id} failed:`, err.message);
+    logger.error("Ingestion job failed", {
+      jobId: job?.id,
+      queue: INGESTION_QUEUE,
+      documentId: job?.data.documentId,
+      organizationId: job?.data.organizationId,
+      source: job?.data.source,
+      jobType: job?.data.jobType,
+      attemptsMade: job?.attemptsMade,
+      error: err,
+    });
+
     if (job && job.data.jobType !== "delete-vectors") {
       await connectDB();
       const notif = await (NotificationModel as any).create({
@@ -199,11 +245,13 @@ export function startIngestionWorker() {
     }
   });
   worker.on("error", (err) =>
-    console.error("[Ingestion Worker] Worker error:", err),
+    logger.error("Ingestion worker error", { queue: INGESTION_QUEUE, error: err }),
   );
 
-  console.log(
-    `[Ingestion Worker] Started, listening on BullMQ queue: "${INGESTION_QUEUE}"`,
-  );
+  logger.info("Ingestion worker started", {
+    queue: INGESTION_QUEUE,
+    concurrency: config.worker.ingestionConcurrency,
+  });
+
   return worker;
 }

@@ -12,4 +12,4 @@ export { BillingCheckoutIntent, IBillingCheckoutIntent } from "./BillingCheckout
 export { UsageRecord, IUsageRecord } from "./UsageRecord";
 export { BillingSubscription, IBillingSubscription, SubscriptionStatus } from "./BillingSubscription";
 export { Notification, INotification } from "./Notification";
-export { AnalyticsEvent, IAnalyticsEvent, AnalyticsEventType } from "./AnalyticsEvent";
+export { AnalyticsEvent, IAnalyticsEvent, AnalyticsEventType, AnalyticsEventChannel } from "./AnalyticsEvent";

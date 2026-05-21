@@ -1,6 +1,16 @@
-import { AnalyticsEventType } from "../models";
+import { AnalyticsEventType, AnalyticsEventChannel } from "../models";
 import { analyticsQueue } from "../config/queue";
 import logger from "./logger";
+
+interface AnalyticsEventContext {
+  conversationId?: string;
+  userId?: string;
+  agentId?: string;
+  widgetId?: string;
+  channel?: AnalyticsEventChannel;
+  occurredAt?: Date;
+  eventVersion?: string;
+}
 
 /**
  * Global analytics tracker.
@@ -11,7 +21,8 @@ export const tracker = {
     organizationId: string,
     type: AnalyticsEventType,
     category: "ai" | "agent" | "system",
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
+    context: AnalyticsEventContext = {}
   ) => {
     // Enqueue job to offload DB write from the main API process
     analyticsQueue.add(
@@ -21,6 +32,13 @@ export const tracker = {
         organizationId,
         category,
         metadata,
+        conversationId: context.conversationId,
+        userId: context.userId,
+        agentId: context.agentId,
+        widgetId: context.widgetId,
+        channel: context.channel,
+        occurredAt: context.occurredAt,
+        eventVersion: context.eventVersion || "1",
       },
       {
         removeOnComplete: true,
@@ -34,14 +52,23 @@ export const tracker = {
   /**
    * Helper for tracking message events
    */
-  trackMessage: (organizationId: string, sender: "ai" | "agent", metadata: Record<string, any> = {}) => {
-    tracker.trackEvent(organizationId, "message_sent", sender, metadata);
+  trackMessage: (
+    organizationId: string,
+    sender: "ai" | "agent",
+    metadata: Record<string, any> = {},
+    context: AnalyticsEventContext = {},
+  ) => {
+    tracker.trackEvent(organizationId, "message_sent", sender, metadata, context);
   },
 
   /**
    * Helper for tracking fallbacks
    */
-  trackFallback: (organizationId: string, metadata: Record<string, any> = {}) => {
-    tracker.trackEvent(organizationId, "fallback_triggered", "system", metadata);
+  trackFallback: (
+    organizationId: string,
+    metadata: Record<string, any> = {},
+    context: AnalyticsEventContext = {},
+  ) => {
+    tracker.trackEvent(organizationId, "fallback_triggered", "system", metadata, context);
   }
 };

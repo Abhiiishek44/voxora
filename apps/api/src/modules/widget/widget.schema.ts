@@ -17,4 +17,8 @@ export const widgetSchema = {
   })
     .or("name", "email")
     .options({ stripUnknown: true }),
+
+  qrScan: Joi.object({
+    publicKey: Joi.string().required(),
+  }).options({ stripUnknown: true }),
 };

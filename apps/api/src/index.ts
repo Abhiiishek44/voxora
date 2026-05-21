@@ -1,5 +1,6 @@
 import express from "express";
 import { createServer } from "http";
+import { randomUUID } from "crypto";
 import cors from "cors";
 import helmet from "helmet";
 import { Router } from "express";
@@ -70,10 +71,42 @@ class Application {
 
     // Request logging
     this.app.use((req, res, next) => {
-      logger.info(`${req.method} ${req.path}`, {
-        ip: req.ip,
-        userAgent: req.get("User-Agent"),
+      const requestId = req.get("x-request-id") || randomUUID();
+      const startedAt = process.hrtime.bigint();
+
+      (req as any).requestId = requestId;
+      res.setHeader("x-request-id", requestId);
+
+      res.on("finish", () => {
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+        const level = res.statusCode >= 500
+          ? "error"
+          : res.statusCode >= 400
+            ? "warn"
+            : "info";
+
+        logger.log(level, "HTTP request completed", {
+          requestId,
+          method: req.method,
+          path: req.originalUrl || req.path,
+          statusCode: res.statusCode,
+          durationMs: Math.round(durationMs),
+          contentLength: res.getHeader("content-length"),
+          ip: req.ip,
+          userAgent: req.get("user-agent"),
+          userId: (req as any).user?.userId,
+          organizationId: (req as any).user?.activeOrganizationId,
+        });
       });
+
+      logger.debug("HTTP request received", {
+        requestId,
+        method: req.method,
+        path: req.originalUrl || req.path,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+
       next();
     });
   }
@@ -137,7 +170,7 @@ class Application {
           `[EmailTemplate Seeder] Completed startup seed: inserted=${result.inserted}`,
         );
       } catch (error) {
-        logger.error("[EmailTemplate Seeder] Startup seed failed:", error);
+        logger.error("[EmailTemplate Seeder] Startup seed failed", { error });
       }
 
       await connectRedis();
@@ -147,7 +180,7 @@ class Application {
 
       // Initialize MinIO (non-blocking - log error but don't crash)
       initializeMinIO().catch((error) => {
-        logger.error('MinIO initialization failed (will retry on first use):', error);
+        logger.error("MinIO initialization failed; will retry on first use", { error });
       });
 
       // Start server
@@ -163,7 +196,7 @@ class Application {
       // Graceful shutdown
       this.setupGracefulShutdown();
     } catch (error) {
-      logger.error("Failed to start server:", error);
+      logger.error("Failed to start server", { error });
       process.exit(1);
     }
   }
@@ -194,12 +227,12 @@ class Application {
     process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
     process.on("unhandledRejection", (reason, promise) => {
-      logger.error("Unhandled Rejection at:", promise, "reason:", reason);
+      logger.error("Unhandled promise rejection", { reason, promise });
       process.exit(1);
     });
 
     process.on("uncaughtException", (error) => {
-      logger.error("Uncaught Exception:", error);
+      logger.error("Uncaught exception", { error });
       process.exit(1);
     });
   }

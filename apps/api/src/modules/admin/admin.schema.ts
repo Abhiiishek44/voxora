@@ -3,8 +3,7 @@ import Joi from "joi";
 const appearanceSchema = Joi.object({
   theme: Joi.string().valid("dark", "light").required(),
   welcomeMessage: Joi.string().min(1).max(500).required(),
-  logoUrl: Joi.string().allow(""),
-});
+}).options({ stripUnknown: true });
 
 const behaviorSchema = Joi.object({
   autoOpen: Joi.boolean().required(),
@@ -50,18 +49,16 @@ export const adminSchema = {
 
   createWidget: Joi.object({
     displayName: Joi.string().min(1).max(50).required(),
-    logoUrl: Joi.string().allow(""),
 
     appearance: appearanceSchema,
     behavior: behaviorSchema,
     ai: aiSchema,
     conversation: conversationSchema,
     features: featuresSchema,
-  }),
+  }).options({ stripUnknown: true }),
 
   updateWidget: Joi.object({
     displayName: Joi.string().min(1).max(50),
-    logoUrl: Joi.string().allow(""),
 
     appearance: appearanceSchema,
     behavior: behaviorSchema,

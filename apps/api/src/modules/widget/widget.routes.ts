@@ -12,6 +12,13 @@ router.post("/auth/validate", authenticateWidget, WidgetController.validateWidge
 // Public config fetch for widget rendering on end-user sites
 router.get("/config", WidgetController.getWidgetConfig);
 
+// Public QR scan tracking
+router.post(
+  "/qr-scan",
+  validateRequest(widgetSchema.qrScan),
+  WidgetController.trackQrScan,
+);
+
 // Widget conversations
 router.post(
   "/conversations",

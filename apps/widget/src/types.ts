@@ -23,7 +23,6 @@ export interface WidgetConfig {
   primaryColor?: string;
   // The following are populated from the API response, not the script tag:
   displayName?: string;
-  logoUrl?: string;
   backgroundColor?: string;
   appearance?: WidgetServerAppearanceConfig;
   behavior?: WidgetServerBehaviorConfig;
@@ -40,7 +39,6 @@ export interface WidgetServerAppearanceConfig {
   position?: "bottom-right" | "bottom-left";
   launcherText?: string;
   welcomeMessage?: string;
-  logoUrl?: string;
 }
 
 export interface WidgetServerBehaviorConfig {
@@ -89,7 +87,6 @@ export interface WidgetConfigApiResponse {
     config?: {
       displayName?: string;
       backgroundColor?: string;
-      logoUrl?: string;
       primaryColor?: string;
       appearance?: WidgetServerAppearanceConfig;
       behavior?: WidgetServerBehaviorConfig;
@@ -111,7 +108,6 @@ export interface WidgetAuthResponse {
     config?: {
       displayName: string;
       backgroundColor: string;
-      logoUrl: string;
     };
   };
 }

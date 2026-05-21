@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { asyncHandler, sendResponse } from "@shared/utils/response";
 import { AuthenticatedRequest } from "@shared/middleware/auth";
 import KnowledgeService from "./knowledge.service";
+import { tracker } from "@shared/utils/tracker";
 
 const getOrgId = (req: Request): string => (req as AuthenticatedRequest).user.activeOrganizationId;
 const getUserId = (req: Request): string => (req as AuthenticatedRequest).user.userId;
@@ -36,6 +37,20 @@ export const confirmUpload = asyncHandler(async (req: Request, res: Response) =>
 export const getViewUrl = asyncHandler(async (req: Request, res: Response) => {
   const documentId = req.params.documentId as string;
   const result = await KnowledgeService.getViewUrl(documentId, getOrgId(req));
+
+  if (result) {
+    tracker.trackEvent(
+      getOrgId(req),
+      "knowledge_view",
+      "system",
+      { documentId },
+      {
+        userId: getUserId(req),
+        channel: "web",
+      },
+    );
+  }
+
   sendResponse(
     res, result ? 200 : 404, !!result,
     result ? "View URL generated" : "Document not found or has no file",

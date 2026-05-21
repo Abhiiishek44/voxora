@@ -1,6 +1,5 @@
 import type { FormEvent } from "react";
 import type { CreateWidgetData } from "../types";
-import { FileUpload } from "@/shared/ui/file-upload";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 
@@ -11,15 +10,6 @@ interface WidgetAppearanceFormProps {
   };
   onInputChange: (field: keyof CreateWidgetData, value: string) => void;
   onSubmit: (e: FormEvent) => void;
-  onUploadSuccess: (data: {
-    fileKey: string;
-    downloadUrl: string;
-    fileName: string;
-  }) => void;
-  onUploadError: (error: string) => void;
-  onFileRemove: () => void;
-  existingWidget: CreateWidgetData | null;
-  savedLogoUrl: string;
 }
 
 export function WidgetAppearanceForm({
@@ -27,11 +17,6 @@ export function WidgetAppearanceForm({
   validationErrors,
   onInputChange,
   onSubmit,
-  onUploadSuccess,
-  onUploadError,
-  onFileRemove,
-  existingWidget,
-  savedLogoUrl,
 }: WidgetAppearanceFormProps) {
   return (
     <div className="rounded-2xl border border-border bg-card/60 backdrop-blur-xl overflow-hidden">
@@ -64,60 +49,6 @@ export function WidgetAppearanceForm({
             )}
             <p className="text-xs text-muted-foreground">
               Shown in the widget header
-            </p>
-          </div>
-
-
-          <div className="space-y-3">
-            <Label
-              htmlFor="logoUrl"
-              className="text-sm font-medium text-foreground/90"
-            >
-              Brand Logo
-            </Label>
-
-            <FileUpload
-              accept="image/*"
-              maxSize={2 * 1024 * 1024}
-              validate={(file) => {
-                if (!file.type.startsWith("image/")) {
-                  return "Please select an image file";
-                }
-                return null;
-              }}
-              onUploadSuccess={onUploadSuccess}
-              onUploadError={onUploadError}
-              onRemove={onFileRemove}
-              initialPreview={formData.logoUrl}
-              initialFileName={existingWidget?.logoUrl ? "Current Logo" : undefined}
-              showPreview
-              buttonText="Choose from Device"
-              buttonVariant="outline"
-              helperText="Upload from your device (PNG, JPG, SVG - Max 2MB)"
-            />
-
-            {savedLogoUrl && (
-              <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-muted/30">
-                <div className="w-16 h-16 rounded-xl border border-border overflow-hidden flex items-center justify-center bg-muted/60 flex-shrink-0">
-                  <img
-                    src={savedLogoUrl}
-                    alt="Current logo"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    Current Logo
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    This logo will appear in your chat widget
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <p className="text-xs text-muted-foreground">
-              Square format recommended, minimum 64x64px
             </p>
           </div>
         </form>

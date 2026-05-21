@@ -4,6 +4,7 @@ import { ConversationService } from "./conversation.service";
 import { AuthenticatedRequest } from "@shared/middleware/auth";
 import { getSocketManager } from "@sockets/index";
 import logger from "@shared/utils/logger";
+import { tracker } from "@shared/utils/tracker";
 
 const conversationService = new ConversationService();
 
@@ -145,6 +146,20 @@ export const routeConversation = asyncHandler(async (req: Request, res: Response
     assignedTo: result.updatedConversation?.assignedTo,
     agentName: result.agentName,
   });
+
+  if (result.updatedConversation?._id && result.selectedAgentId) {
+    tracker.trackEvent(
+      orgId,
+      "agent_assigned",
+      "system",
+      { reason: reason || "manual_routing" },
+      {
+        conversationId: result.updatedConversation._id.toString(),
+        agentId: result.selectedAgentId.toString(),
+        channel: "web",
+      },
+    );
+  }
 });
 
 // ─── Update conversation status (full) ──────────────────────────────────────────
@@ -180,4 +195,18 @@ export const updateConversationStatus = asyncHandler(async (req: Request, res: R
     conversationId: result.conversation!._id,
     status: result.conversation!.status,
   });
+
+  if (status === "closed" || status === "resolved") {
+    tracker.trackEvent(
+      orgId,
+      status === "closed" ? "conversation_closed" : "conversation_resolved",
+      "agent",
+      { updatedBy: (req as AuthenticatedRequest).user.userId },
+      {
+        conversationId: result.conversation!._id.toString(),
+        agentId: (req as AuthenticatedRequest).user.userId,
+        channel: "web",
+      },
+    );
+  }
 });

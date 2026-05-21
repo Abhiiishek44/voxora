@@ -1,8 +1,7 @@
 import winston from "winston";
-import config from "@shared/config";
 
-const service = process.env.SERVICE_NAME || "interaone-api";
-const environment = config.app.env || process.env.NODE_ENV || "development";
+const service = process.env.SERVICE_NAME || "interaone-worker";
+const environment = process.env.NODE_ENV || "development";
 const isProduction = environment === "production";
 const logLevel = process.env.LOG_LEVEL || (isProduction ? "info" : "debug");
 
@@ -67,8 +66,6 @@ const logger = winston.createLogger({
   format: productionFormat,
   defaultMeta: { service, environment },
   transports: [
-    new winston.transports.File({ filename: "logs/error.log", level: "error" }),
-    new winston.transports.File({ filename: "logs/combined.log" }),
     new winston.transports.Console({
       format: isProduction ? productionFormat : developmentFormat,
     }),
