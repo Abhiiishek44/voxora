@@ -10,7 +10,7 @@ function updateGreeting(name?: string, overrideSubtext?: string) {
   const subtext = elements.greetingSubtext;
 
   if (greeting) {
-    greeting.textContent = name ? `Hello, ${name}` : 'How can I help?';
+    greeting.textContent = 'What can I help you with?';
   }
   if (subtext) {
     subtext.textContent = overrideSubtext || 'Ask anything or pick a suggestion below to get started.';
@@ -18,10 +18,9 @@ function updateGreeting(name?: string, overrideSubtext?: string) {
 }
 
 const DEFAULT_SUGGESTIONS: Array<{ text: string; showOutside: boolean }> = [
-  { text: 'What can you help me with?', showOutside: false },
-  { text: 'I need help with my order', showOutside: false },
-  { text: 'Talk to a human agent', showOutside: false },
-  { text: 'What are your business hours?', showOutside: false },
+  { text: 'Get help with a question', showOutside: false },
+  { text: 'Learn about services', showOutside: false },
+  { text: 'Contact support', showOutside: false },
 ];
 
 function applyWidgetAppearance(cfg: any) {

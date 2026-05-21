@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import crypto from "crypto";
 import { Widget, Membership, MembershipRole } from "@shared/models";
 import logger from "@shared/utils/logger";
+import { DEFAULT_WIDGET_SUGGESTIONS } from "@shared/constants/widget-defaults";
 
 const DEFAULT_WIDGET_SETTINGS = {
   backgroundColor: "#845C6C",
@@ -30,12 +31,7 @@ const DEFAULT_WIDGET_SETTINGS = {
   features: {
     endUserDomAccess: false,
   },
-  suggestions: [
-    { text: "What can you help me with?", showOutside: true },
-    { text: "I need help with my order", showOutside: false },
-    { text: "Talk to a human agent", showOutside: true },
-    { text: "What are your business hours?", showOutside: false },
-  ],
+  suggestions: DEFAULT_WIDGET_SUGGESTIONS,
 };
 
 function withWidgetConfigDefaults(input: any): any {

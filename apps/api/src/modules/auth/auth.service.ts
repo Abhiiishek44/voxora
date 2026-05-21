@@ -5,21 +5,22 @@ import { isEmailEnabled } from "@shared/utils/email";
 import {
   enqueuePasswordResetEmail,
   enqueueWelcomeEmail,
+  enqueueEmailVerificationLinkEmail,
   enqueueEmailVerificationOTPEmail,
   enqueueForgotPasswordOTPEmail
 } from "@shared/queues/email.queue";
 import { generateOTP, hashOTP, verifyOTP as checkOTP } from "@shared/utils/otp";
 import { OrganizationService } from "@modules/organization/organization.service";
 import crypto from "crypto";
+import { DEFAULT_WIDGET_SUGGESTIONS } from "@shared/constants/widget-defaults";
 
 export class AuthService {
   // ─────────────────────────────────────────────────────────────────
-  //  BOOTSTRAP  (first time setup — no organizations exist yet)
+  //  PUBLIC SIGNUP
   // ─────────────────────────────────────────────────────────────────
 
   /**
-   * Called on first-ever setup. Creates the first user, first organization,
-   * and the owner membership. After this, registration is invite-only.
+   * Legacy one-step signup endpoint. Creates a user, organization, and owner membership.
    */
   async adminSignup(data: {
     name: string;
@@ -27,16 +28,6 @@ export class AuthService {
     password: string;
     organizationName: string;
   }) {
-    // Guard: only allowed when no organizations exist
-    const orgCount = await Organization.countDocuments();
-    if (orgCount > 0) {
-      return {
-        success: false,
-        message: "Setup already completed. Use invite flow to add new users.",
-        statusCode: 400,
-      };
-    }
-
     const existingUser = await User.findOne({ email: data.email.toLowerCase() });
     if (existingUser) {
       return { success: false, message: "Email already registered", statusCode: 400 };
@@ -52,10 +43,8 @@ export class AuthService {
     });
     await user.save();
 
-    // Create the organization + owner membership
-    const slug = OrganizationService.generateSlug(data.organizationName);
-    const organization = new Organization({ name: data.organizationName, slug });
-    await organization.save();
+    // Create the organization + owner membership with retry on slug conflict
+    const organization = await this._createOrganizationWithRetry(data.organizationName);
 
     await Membership.create({
       userId: user._id,
@@ -72,7 +61,7 @@ export class AuthService {
       ],
     });
 
-    // Auto-create default widget for the first organization
+    // Auto-create default widget for the organization
     await Widget.create({
       organizationId: organization._id,
       displayName: "InteraOne AI",
@@ -88,12 +77,7 @@ export class AuthService {
       ai: { enabled: true, fallbackToAgent: true },
       conversation: { collectUserInfo: { name: true, email: true, phone: false } },
       features: { endUserDomAccess: false },
-      suggestions: [
-        { text: "How can you help me today?", showOutside: true },
-        { text: "I have a question about my account", showOutside: true },
-        { text: "Can you help me troubleshoot an issue?", showOutside: false },
-        { text: "I'd like to speak with support", showOutside: false },
-      ],
+      suggestions: DEFAULT_WIDGET_SUGGESTIONS,
       publicKey: crypto.randomBytes(16).toString("hex"),
     });
 
@@ -146,7 +130,7 @@ export class AuthService {
       });
     }
 
-    return this.generateAndSendOTP(data.email, "email_verification");
+    return this.sendEmailVerification(data.email);
   }
 
   /**
@@ -167,15 +151,17 @@ export class AuthService {
       return { success: false, message: "Email not verified", statusCode: 403 };
     }
 
+    if (user.isActive) {
+      return { success: false, message: "Email already registered", statusCode: 400 };
+    }
+
     // Set password and activate
     user.password = data.password;
     user.isActive = true;
     await user.save();
 
-    // Create the organization
-    const slug = OrganizationService.generateSlug(data.organizationName);
-    const organization = new Organization({ name: data.organizationName, slug });
-    await organization.save();
+    // Create the organization with retry on slug conflict
+    const organization = await this._createOrganizationWithRetry(data.organizationName);
 
     // Create Membership (Owner)
     await Membership.create({
@@ -205,6 +191,9 @@ export class AuthService {
       },
       behavior: { autoOpen: false, showOnMobile: true, showOnDesktop: true },
       ai: { enabled: true, fallbackToAgent: true },
+      conversation: { collectUserInfo: { name: true, email: true, phone: false } },
+      features: { endUserDomAccess: false },
+      suggestions: DEFAULT_WIDGET_SUGGESTIONS,
       publicKey: crypto.randomBytes(16).toString("hex"),
     });
 
@@ -332,7 +321,7 @@ export class AuthService {
   //  PASSWORD MANAGEMENT
   // ─────────────────────────────────────────────────────────────────
 
-  async forgotPassword(email: string) {
+  async forgotPassword(email: string, verificationMethod: "link" | "otp" = "link") {
     if (!isEmailEnabled()) {
       return {
         success: false,
@@ -347,8 +336,27 @@ export class AuthService {
       return { success: true }; // Silent failure for security
     }
 
-    await this.generateAndSendOTP(user.email, "password_reset");
-    return { success: true };
+    if (verificationMethod === "otp") {
+      await this.generateAndSendOTP(user.email, "password_reset");
+      return { success: true };
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    user.passwordResetToken = this._hashResetToken(resetToken);
+    user.passwordResetExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    user.otp = undefined;
+    await user.save();
+
+    await enqueuePasswordResetEmail(user.email, user.name, resetToken);
+    return { success: true, data: { isActive: user.isActive } };
+  }
+
+  async sendEmailVerification(email: string) {
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return { success: false, message: "User not found", statusCode: 404 };
+    if (user.emailVerified) return { success: true, message: "Email is already verified" };
+
+    return this.generateAndSendOTP(user.email, "email_verification");
   }
 
   async generateAndSendOTP(email: string, type: "email_verification" | "password_reset") {
@@ -420,8 +428,11 @@ export class AuthService {
       await enqueueWelcomeEmail(user.email, user.name, role);
     }
 
-    // Invalidate OTP after any successful verification
-    user.otp = undefined;
+    // Email verification is complete here. Password reset OTPs are consumed
+    // only after the new password is saved.
+    if (type === "email_verification") {
+      user.otp = undefined;
+    }
     await user.save();
 
     return { success: true };
@@ -444,25 +455,65 @@ export class AuthService {
     if (!result.success) return result;
 
     user.password = newPassword;
+    user.otp = undefined;
     await user.save();
+
+    // Revoke all active sessions for security
+    await this._revokeAllUserSessions(user._id.toString());
 
     return { success: true };
   }
 
+  async validatePasswordResetToken(token: string) {
+    if (!token) {
+      return { success: false, message: "Reset link is missing or invalid", statusCode: 400 };
+    }
 
+    const user = await User.findOne({
+      passwordResetToken: this._hashResetToken(token),
+      passwordResetExpiresAt: { $gt: new Date() },
+      isActive: true,
+    });
 
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
-    const user = await User.findById(userId).select("+password");
-    if (!user) return { success: false, message: "User not found", statusCode: 404 };
+    if (!user) {
+      return { success: false, message: "Reset link is invalid or has expired", statusCode: 400 };
+    }
 
-    if (!(await user.comparePassword(currentPassword))) {
-      return { success: false, message: "Current password is incorrect", statusCode: 400 };
+    return { success: true };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    if (!token) {
+      return { success: false, message: "Reset link is missing or invalid", statusCode: 400 };
+    }
+
+    const user = await User.findOne({
+      passwordResetToken: this._hashResetToken(token),
+      passwordResetExpiresAt: { $gt: new Date() },
+      isActive: true,
+    }).select("+password");
+
+    if (!user) {
+      return { success: false, message: "Reset link is invalid or has expired", statusCode: 400 };
+    }
+
+    if (await user.comparePassword(newPassword)) {
+      return { success: false, message: "New password cannot be the same as current password", statusCode: 400 };
     }
 
     user.password = newPassword;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpiresAt = undefined;
+    user.otp = undefined;
     await user.save();
+
+    // Revoke all active sessions for security
+    await this._revokeAllUserSessions(user._id.toString());
+
     return { success: true };
   }
+
+
 
   // ─────────────────────────────────────────────────────────────────
   //  BOOTSTRAP CHECK  (frontend uses this to decide setup vs login page)
@@ -485,13 +536,66 @@ export class AuthService {
     );
   }
 
+  private async _revokeAllUserSessions(userId: string): Promise<void> {
+    try {
+      const pattern = `org:*:refresh_token:${userId}`;
+      const keys: string[] = [];
+      
+      // Use SCAN to find all matching keys
+      for await (const key of redisClient.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+        keys.push(key);
+      }
+      
+      // Delete all found keys
+      if (keys.length > 0) {
+        await redisClient.del(keys);
+      }
+    } catch (error) {
+      // Log error but don't fail the password reset
+      console.error("Failed to revoke user sessions:", error);
+    }
+  }
+
+  private _hashResetToken(token: string) {
+    return crypto.createHash("sha256").update(token).digest("hex");
+  }
+
+  /**
+   * Create organization with automatic retry on slug conflicts.
+   * Handles race conditions by catching duplicate key errors.
+   */
+  private async _createOrganizationWithRetry(name: string, maxAttempts = 3): Promise<any> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const slug = await OrganizationService.generateAvailableSlug(name);
+        const organization = new Organization({ name, slug });
+        await organization.save();
+        return organization;
+      } catch (error: any) {
+        lastError = error;
+        
+        // Check if it's a duplicate key error (MongoDB error code 11000)
+        if (error.code === 11000 && attempt < maxAttempts) {
+          // Retry with a small delay to reduce collision probability
+          await new Promise(resolve => setTimeout(resolve, 50 * attempt));
+          continue;
+        }
+        
+        // If not a duplicate error or max attempts reached, throw
+        throw error;
+      }
+    }
+    
+    throw lastError || new Error("Failed to create organization after multiple attempts");
+  }
+
   // ─────────────────────────────────────────────────────────────────
   //  STATIC SHORTHAND (used in places that don't instantiate the class)
   // ─────────────────────────────────────────────────────────────────
 
   static async register(userData: { name: string; email: string; password: string }) {
-    throw new Error(
-      "Open registration is disabled. Use the invite flow or bootstrap setup.",
-    );
+    throw new Error("Use the signup flow endpoints to create an account.");
   }
 }

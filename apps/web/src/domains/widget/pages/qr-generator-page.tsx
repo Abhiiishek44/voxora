@@ -9,6 +9,7 @@ import { Loader } from "@/shared/ui/loader";
 import { INTERAONE_LOGO_BASE64 } from "@/shared/assets/interaone-logo-base64";
 
 const QR_CANVAS_ID = "InteraOne-qr-code-canvas";
+const PAGE_TITLE = "Chat Access QR";
 
 export default function QRCodeGeneratorPage() {
   const { data: widget, isLoading } = useWidget();
@@ -77,7 +78,7 @@ export default function QRCodeGeneratorPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold text-foreground">QR Code Access</h1>
         <p className="text-sm text-muted-foreground">
-          Only workspace owners can generate branded chat QR codes.
+          Only workspace owners can manage branded chat access QR codes.
         </p>
       </div>
     );
@@ -94,7 +95,7 @@ export default function QRCodeGeneratorPage() {
   if (!publicKey) {
     return (
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-foreground">QR Code Generator</h1>
+        <h1 className="text-2xl font-semibold text-foreground">{PAGE_TITLE}</h1>
         <p className="text-sm text-muted-foreground">
           Create your widget first to generate a scan-ready chat QR code.
         </p>

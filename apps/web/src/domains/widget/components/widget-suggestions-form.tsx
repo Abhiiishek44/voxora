@@ -46,7 +46,7 @@ export function WidgetSuggestionsForm({ suggestions, onChange }: WidgetSuggestio
                 <Input
                   value={suggestion.text}
                   onChange={(e) => update(index, { text: e.target.value })}
-                  placeholder="e.g. What can you help me with?"
+                  placeholder="e.g. Get help with a question"
                   className="h-9 text-sm rounded-lg border-border bg-background/80 cursor-text"
                   maxLength={60}
                 />

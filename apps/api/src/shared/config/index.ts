@@ -124,7 +124,10 @@ const config: Config = {
   app: {
     port: 3002,
     env: process.env.NODE_ENV || "development",
-    clientUrl: process.env.CLIENT_URL!,
+    clientUrl: process.env.CLIENT_URL || 
+      (process.env.NODE_ENV === "production" 
+        ? (() => { throw new Error("CLIENT_URL environment variable is required in production"); })()
+        : "http://localhost:5173"),
     mode: (process.env.INTERAONE_MODE || "self-host") === "cloud" ? "cloud" : "self-host",
     eeEnabled: (process.env.INTERAONE_EE_ENABLED || "false") === "true",
     licenseKey: process.env.INTERAONE_LICENSE_KEY,

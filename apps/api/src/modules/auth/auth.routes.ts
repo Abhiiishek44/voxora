@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as AuthController from "./auth.controller";
-import { authenticate, validateRequest, authRateLimit, otpRateLimit } from "@shared/middleware";
+import { authenticate, validateRequest, authRateLimit } from "@shared/middleware";
 import { authSchema } from "./auth.schema";
 
 const router = Router();
@@ -16,8 +16,18 @@ router.post(
 );
 
 // ─── Multi-step Signup ────────────────────────────────────────────────────────
-router.post("/initiate-signup", AuthController.initiateSignup);
-router.post("/complete-signup", AuthController.completeSignup);
+router.post(
+  "/initiate-signup",
+  authRateLimit,
+  validateRequest(authSchema.initiateSignup),
+  AuthController.initiateSignup,
+);
+router.post(
+  "/complete-signup",
+  authRateLimit,
+  validateRequest(authSchema.completeSignup),
+  AuthController.completeSignup,
+);
 
 // ─── Unified Login ────────────────────────────────────────────────────────────
 router.post(
@@ -28,14 +38,25 @@ router.post(
 );
 
 // ─── OTP / Verification ───────────────────────────────────────────────────────
-router.post("/verify-email", otpRateLimit, AuthController.verifyEmail);
-router.post("/resend-otp", otpRateLimit, AuthController.resendOTP);
-router.post("/verify-otp", otpRateLimit, AuthController.verifyOTP);
-router.post("/reset-password-otp", otpRateLimit, AuthController.resetPasswordWithOTP);
+router.post("/resend-otp", authRateLimit, AuthController.resendOTP);
+router.post("/verify-otp", authRateLimit, AuthController.verifyOTP);
+router.post(
+  "/reset-password-otp",
+  authRateLimit,
+  validateRequest(authSchema.resetPasswordWithOTP),
+  AuthController.resetPasswordWithOTP,
+);
 
 
 // ─── Password Reset ───────────────────────────────────────────────────────────
-router.post("/forgot-password", AuthController.forgotPassword);
+router.post("/forgot-password", authRateLimit, validateRequest(authSchema.forgotPassword), AuthController.forgotPassword);
+router.get("/reset-password/validate", authRateLimit, AuthController.validateResetPasswordToken);
+router.post(
+  "/reset-password",
+  authRateLimit,
+  validateRequest(authSchema.resetPassword),
+  AuthController.resetPassword,
+);
 
 router.post("/refresh-token", AuthController.refreshToken);
 

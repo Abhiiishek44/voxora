@@ -6,6 +6,7 @@ import logger from "@shared/utils/logger";
 import config from "@shared/config";
 import jwt from "jsonwebtoken";
 import { tracker } from "@shared/utils/tracker";
+import { DEFAULT_WIDGET_SUGGESTIONS } from "@shared/constants/widget-defaults";
 
 const DEFAULT_WIDGET_CONFIG = {
   appearance: {
@@ -34,6 +35,7 @@ const DEFAULT_WIDGET_CONFIG = {
   features: {
     endUserDomAccess: false,
   },
+  suggestions: DEFAULT_WIDGET_SUGGESTIONS,
 };
 
 // ========================
@@ -158,12 +160,7 @@ export const getWidgetConfig = asyncHandler(
           },
           suggestions: Array.isArray((widget as any).suggestions)
             ? (widget as any).suggestions
-            : [
-              { text: "What can you help me with?", showOutside: true },
-              { text: "I need help with my order", showOutside: false },
-              { text: "Talk to a human agent", showOutside: true },
-              { text: "What are your business hours?", showOutside: false },
-            ],
+            : DEFAULT_WIDGET_CONFIG.suggestions,
         },
       });
     } catch (error: any) {

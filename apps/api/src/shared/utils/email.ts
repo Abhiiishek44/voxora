@@ -101,12 +101,16 @@ async function buildFromTemplate(type: EmailTemplateType, vars: TemplateVars): P
 
 // ── Template builders ────────────────────────────────────────────────────────
 
+function getClientUrl(): string {
+  return (config.app.clientUrl || "http://localhost:5173").replace(/\/+$/, "");
+}
+
 export async function buildInviteEmail(
   inviterName: string,
   role: string,
   inviteToken: string,
 ): Promise<BuiltEmail> {
-  const inviteUrl = `${config.app.clientUrl}/auth/accept-invite?token=${inviteToken}`;
+  const inviteUrl = `${getClientUrl()}/auth/accept-invite?token=${encodeURIComponent(inviteToken)}`;
 
   const safeInviterName = escapeHtml(inviterName);
   const safeRole = escapeHtml(role);
@@ -127,7 +131,7 @@ export async function buildPasswordResetEmail(
   name: string,
   resetToken: string,
 ): Promise<BuiltEmail> {
-  const resetUrl = `${config.app.clientUrl}/auth/reset-password?token=${resetToken}`;
+  const resetUrl = `${getClientUrl()}/auth/reset-password?token=${encodeURIComponent(resetToken)}`;
 
   return buildFromTemplate("password_reset", {
     name: escapeHtml(name),
@@ -135,8 +139,20 @@ export async function buildPasswordResetEmail(
   });
 }
 
+export async function buildEmailVerificationLinkEmail(
+  name: string,
+  token: string,
+): Promise<BuiltEmail> {
+  const verificationUrl = `${getClientUrl()}/auth/verify-email?token=${encodeURIComponent(token)}`;
+
+  return buildFromTemplate("email_verification_link", {
+    name: escapeHtml(name),
+    verificationUrl,
+  });
+}
+
 export async function buildWelcomeEmail(name: string, role: string): Promise<BuiltEmail> {
-  const loginUrl = `${config.app.clientUrl}/auth/login`;
+  const loginUrl = `${getClientUrl()}/auth/login`;
 
   return buildFromTemplate("welcome", {
     name: escapeHtml(name),

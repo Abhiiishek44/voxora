@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useEffect, useState } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import {
@@ -27,23 +27,55 @@ import { OTPInput } from "./otp-input.tsx";
 import { ResendOTPTimer } from "./resend-otp-timer.tsx";
 
 type RecoveryStep = "email" | "otp" | "reset";
+type VerificationMethod = "link" | "otp";
 
 export function PasswordRecoveryForm() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<RecoveryStep>("email");
+  const [searchParams] = useSearchParams();
+  const resetToken = searchParams.get("token") || "";
+  const [step, setStep] = useState<RecoveryStep>(resetToken ? "reset" : "email");
+  const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>(resetToken ? "link" : "link");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingToken, setIsCheckingToken] = useState(Boolean(resetToken));
+  const [isTokenInvalid, setIsTokenInvalid] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Email step handler
+
+  useEffect(() => {
+    if (!resetToken) return;
+
+    let isMounted = true;
+    setIsCheckingToken(true);
+    setError(null);
+
+    authApi.verifyResetToken(resetToken)
+      .then(() => {
+        if (isMounted) setStep("reset");
+      })
+      .catch((err: any) => {
+        if (isMounted) {
+          setIsTokenInvalid(true);
+          setError(err.message || "This reset link is invalid or has expired.");
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsCheckingToken(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [resetToken]);
+
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const emailError = validateEmail(email);
@@ -55,16 +87,19 @@ export function PasswordRecoveryForm() {
     setIsLoading(true);
     setError(null);
     try {
-      await authApi.forgotPassword(email);
-      setStep("otp");
+      await authApi.forgotPassword(email, verificationMethod);
+      if (verificationMethod === "otp") {
+        setStep("otp");
+      } else {
+        setIsSuccess(true);
+      }
     } catch (err: any) {
-      setError(err.message || "Failed to send OTP. Please try again.");
+      setError(err.message || "Failed to send reset link. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // OTP step handler
   const handleOtpComplete = async (code: string) => {
     setOtp(code);
     setIsLoading(true);
@@ -79,9 +114,21 @@ export function PasswordRecoveryForm() {
     }
   };
 
-  // Reset password handler
+  const handleResend = async () => {
+    if (verificationMethod === "otp") {
+      await authApi.resendOTP(email, "password_reset");
+    } else {
+      await authApi.forgotPassword(email, "link");
+    }
+  };
+
   const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!resetToken && verificationMethod === "link") {
+      setIsTokenInvalid(true);
+      setError("This reset link is missing or invalid.");
+      return;
+    }
     const passwordError = validatePassword(password);
     if (passwordError) {
       setError(passwordError);
@@ -95,7 +142,11 @@ export function PasswordRecoveryForm() {
     setIsLoading(true);
     setError(null);
     try {
-      await authApi.resetPasswordWithOTP({ email, code: otp, newPassword: password });
+      if (verificationMethod === "otp") {
+        await authApi.resetPasswordWithOTP({ email, code: otp, newPassword: password });
+      } else {
+        await authApi.resetPassword(resetToken, password);
+      }
       setIsSuccess(true);
       setTimeout(() => navigate("/auth/login"), 3000);
     } catch (err: any) {
@@ -105,11 +156,9 @@ export function PasswordRecoveryForm() {
     }
   };
 
-  const handleResend = async () => {
-    await authApi.resendOTP(email, "password_reset");
-  };
-
   if (isSuccess) {
+    const isPasswordUpdated = step === "reset";
+
     return (
       <Card className="w-full max-w-md border-border/40 shadow-2xl">
         <CardHeader className="space-y-1 text-center">
@@ -118,13 +167,19 @@ export function PasswordRecoveryForm() {
               <CheckCircle className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Password Reset Successful</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            {isPasswordUpdated ? "Password Reset Successful" : "Check your email"}
+          </CardTitle>
           <CardDescription>
-            Your security is our priority. You can now log in with your new password.
+            {isPasswordUpdated
+              ? "Your security is our priority. You can now log in with your new password."
+              : "If an account exists for that email, we sent a secure reset link."}
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center">
-          <p className="text-sm text-muted-foreground mb-6">Redirecting to login page...</p>
+          <p className="text-sm text-muted-foreground mb-6">
+            {isPasswordUpdated ? "Redirecting to login page..." : "The link expires in 10 minutes."}
+          </p>
           <Link to="/auth/login" className="w-full">
             <Button className="w-full font-bold">Go to Login</Button>
           </Link>
@@ -138,7 +193,7 @@ export function PasswordRecoveryForm() {
       <div className="h-1.5 w-full bg-muted/20">
         <div 
           className="h-full bg-primary transition-all duration-500 ease-out" 
-          style={{ width: step === "email" ? "33%" : step === "otp" ? "66%" : "100%" }}
+          style={{ width: step === "email" ? "50%" : "100%" }}
         />
       </div>
       <CardHeader className="space-y-1 pt-8">
@@ -151,7 +206,7 @@ export function PasswordRecoveryForm() {
           {step === "reset" && "Secure Password"}
         </CardTitle>
         <CardDescription className="text-center">
-          {step === "email" && "Enter your email to receive a secure recovery code."}
+          {step === "email" && "Enter your email to receive a secure reset link."}
           {step === "otp" && `Enter the 6-digit code sent to ${email}`}
           {step === "reset" && "Create a strong, unique password for your account."}
         </CardDescription>
@@ -166,6 +221,25 @@ export function PasswordRecoveryForm() {
 
         {step === "email" && (
           <form onSubmit={handleEmailSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: "link" as const, label: "Verify using Email Link" },
+                { value: "otp" as const, label: "Verify using OTP" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setVerificationMethod(option.value)}
+                  className={`min-h-11 rounded-lg border px-3 text-sm font-semibold transition-colors ${
+                    verificationMethod === option.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             <div className="space-y-2">
               <div className="relative">
                 <Mail className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
@@ -181,27 +255,27 @@ export function PasswordRecoveryForm() {
               </div>
             </div>
             <Button type="submit" className="w-full h-11 font-bold shadow-lg shadow-primary/20" disabled={isLoading}>
-              {isLoading ? "Sending..." : "Send Verification Code"}
+              {isLoading ? "Sending..." : verificationMethod === "otp" ? "Send OTP" : "Send Reset Link"}
             </Button>
           </form>
         )}
 
         {step === "otp" && (
           <div className="space-y-8">
-            <OTPInput 
-              value={otp} 
+            <OTPInput
+              value={otp}
               onChange={(val) => {
                 setOtp(val);
                 if (val.length === 6) {
                   handleOtpComplete(val);
                 }
-              }} 
-              disabled={isLoading} 
+              }}
+              disabled={isLoading}
             />
             <ResendOTPTimer onResend={handleResend} />
-            <Button 
-              variant="ghost" 
-              className="w-full text-muted-foreground" 
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
               onClick={() => setStep("email")}
               disabled={isLoading}
             >
@@ -212,6 +286,9 @@ export function PasswordRecoveryForm() {
 
         {step === "reset" && (
           <form onSubmit={handleResetSubmit} className="space-y-5">
+            {isCheckingToken && (
+              <p className="text-sm text-muted-foreground text-center">Checking reset link...</p>
+            )}
             <div className="space-y-2">
               <div className="relative">
                 <Lock className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
@@ -219,9 +296,12 @@ export function PasswordRecoveryForm() {
                   type={showPassword ? "text" : "password"}
                   placeholder="New Password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (!isTokenInvalid) setError(null);
+                  }}
                   className="pl-10 pr-10 h-11 bg-muted/10 border-border/40"
-                  disabled={isLoading}
+                  disabled={isLoading || (verificationMethod === "link" && (isCheckingToken || isTokenInvalid))}
                   required
                 />
                 <button
@@ -240,9 +320,12 @@ export function PasswordRecoveryForm() {
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="Confirm New Password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (!isTokenInvalid) setError(null);
+                  }}
                   className="pl-10 pr-10 h-11 bg-muted/10 border-border/40"
-                  disabled={isLoading}
+                  disabled={isLoading || (verificationMethod === "link" && (isCheckingToken || isTokenInvalid))}
                   required
                 />
                 <button
@@ -254,7 +337,11 @@ export function PasswordRecoveryForm() {
                 </button>
               </div>
             </div>
-            <Button type="submit" className="w-full h-11 font-bold shadow-lg shadow-primary/20" disabled={isLoading}>
+            <Button
+              type="submit"
+              className="w-full h-11 font-bold shadow-lg shadow-primary/20"
+              disabled={isLoading || (verificationMethod === "link" && (isCheckingToken || isTokenInvalid))}
+            >
               {isLoading ? "Updating..." : "Reset Password"}
             </Button>
           </form>

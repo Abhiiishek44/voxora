@@ -12,6 +12,9 @@ export interface IUser extends Document {
   isActive: boolean;
   emailVerified: boolean;
   emailVerificationToken?: string;
+  emailVerificationTokenExpiresAt?: Date;
+  passwordResetToken?: string;
+  passwordResetExpiresAt?: Date;
   otp?: {
     code: string;
     expiresAt: Date;
@@ -39,6 +42,9 @@ const userSchema = new Schema<IUser>(
     isActive: { type: Boolean, default: true },
     emailVerified: { type: Boolean, default: false },
     emailVerificationToken: { type: String },
+    emailVerificationTokenExpiresAt: { type: Date },
+    passwordResetToken: { type: String },
+    passwordResetExpiresAt: { type: Date },
     otp: {
       code: { type: String },
       expiresAt: { type: Date },
@@ -52,6 +58,8 @@ const userSchema = new Schema<IUser>(
 
 userSchema.index({ email: 1 });
 userSchema.index({ status: 1 });
+userSchema.index({ emailVerificationToken: 1 });
+userSchema.index({ passwordResetToken: 1 });
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password") || !this.password) return next();

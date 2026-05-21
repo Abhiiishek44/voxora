@@ -4,6 +4,7 @@ import {
   isEmailEnabled,
   buildInviteEmail,
   buildPasswordResetEmail,
+  buildEmailVerificationLinkEmail,
   buildWelcomeEmail,
   buildEmailVerificationOTPEmail,
   buildForgotPasswordOTPEmail,
@@ -31,7 +32,7 @@ const emailQueue = new Queue<EmailOptions>(EMAIL_QUEUE, {
 });
 
 async function enqueueEmail(
-  jobName: "invite" | "password_reset" | "welcome" | "email_verification_otp" | "password_reset_otp",
+  jobName: "invite" | "password_reset" | "welcome" | "email_verification_link" | "email_verification_otp" | "password_reset_otp",
   payload: { to: string; subject: string; html: string; text?: string },
 ): Promise<void> {
   const from = await resolveFromEmail();
@@ -80,6 +81,17 @@ export async function enqueueEmailVerificationOTPEmail(
   if (!isEmailEnabled()) return false;
   const { subject, html } = await buildEmailVerificationOTPEmail(name, otp);
   await enqueueEmail("email_verification_otp", { to, subject, html });
+  return true;
+}
+
+export async function enqueueEmailVerificationLinkEmail(
+  to: string,
+  name: string,
+  token: string,
+): Promise<boolean> {
+  if (!isEmailEnabled()) return false;
+  const { subject, html } = await buildEmailVerificationLinkEmail(name, token);
+  await enqueueEmail("email_verification_link", { to, subject, html });
   return true;
 }
 
