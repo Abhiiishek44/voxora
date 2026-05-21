@@ -2,6 +2,7 @@ import { Worker, ConnectionOptions } from "bullmq";
 import nodemailer, { Transporter } from "nodemailer";
 import { Resend } from "resend";
 import config, { type EmailProvider } from "../config";
+import logger from "../utils/logger";
 
 // ── Job payload ──────────────────────────────────────────────────────────────
 
@@ -78,7 +79,10 @@ class ResendEmailAdapter implements EmailAdapter {
 
 class DisabledEmailAdapter implements EmailAdapter {
   async send(options: EmailJobData): Promise<void> {
-    console.warn(`[Email Worker] SKIPPING mail to ${options.to} (Provider is DISABLED): "${options.subject}"`);
+    logger.warn("Email skipped because provider is disabled", {
+      to: options.to,
+      subject: options.subject,
+    });
   }
 }
 
@@ -112,22 +116,46 @@ export function startEmailWorker() {
   const worker = new Worker<EmailJobData, void, string>(
     EMAIL_QUEUE,
     async (job) => {
-      console.log(`[Email Worker] Sending "${job.data.subject}" to ${job.data.to}`);
+      logger.info("Sending email job", {
+        jobId: job.id,
+        queue: EMAIL_QUEUE,
+        to: job.data.to,
+        subject: job.data.subject,
+        provider: config.email.provider,
+        attempt: job.attemptsMade + 1,
+      });
+
       await adapter.send(job.data);
     },
     { connection, concurrency: config.worker.concurrency },
   );
 
   worker.on("completed", (job) =>
-    console.log(`[Email Worker] Job ${job.id} completed — mail to ${job.data.to}`),
+    logger.info("Email job completed", {
+      jobId: job.id,
+      queue: EMAIL_QUEUE,
+      to: job.data.to,
+      attemptsMade: job.attemptsMade,
+    }),
   );
   worker.on("failed", (job, err) =>
-    console.error(`[Email Worker] Job ${job?.id} failed:`, err.message),
+    logger.error("Email job failed", {
+      jobId: job?.id,
+      queue: EMAIL_QUEUE,
+      to: job?.data.to,
+      attemptsMade: job?.attemptsMade,
+      error: err,
+    }),
   );
   worker.on("error", (err) =>
-    console.error("[Email Worker] Worker error:", err),
+    logger.error("Email worker error", { queue: EMAIL_QUEUE, error: err }),
   );
 
-  console.log(`[Email Worker] Started. Provider: "${config.email.provider}" | Queue: "${EMAIL_QUEUE}"`);
+  logger.info("Email worker started", {
+    queue: EMAIL_QUEUE,
+    provider: config.email.provider,
+    concurrency: config.worker.concurrency,
+  });
+
   return worker;
 }

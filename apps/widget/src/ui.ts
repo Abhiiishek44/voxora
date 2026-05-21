@@ -21,6 +21,10 @@ export class WidgetUI {
   private centered = false;
   private hostPaddingRight: string | null = null;
   private hostTransition: string | null = null;
+  private hostOverflowY: string | null = null;
+  private hostScrollbarGutter: string | null = null;
+  private documentOverflowY: string | null = null;
+  private documentScrollbarGutter: string | null = null;
 
   private get isFullscreen(): boolean {
     return this.config.fullscreen === true;
@@ -44,17 +48,13 @@ export class WidgetUI {
   }
 
   /**
-   * Merge server-provided config fields (e.g. logoUrl, displayName) into local config.
-   * Must be called before createButton() so the button picks up the logo.
+   * Merge server-provided config fields into local config.
    */
   applyServerConfig(serverConfig: WidgetServerConfig | null): void {
     if (!serverConfig) return;
 
     const appearance = serverConfig.appearance || {};
 
-    if (serverConfig.logoUrl || appearance.logoUrl) {
-      this.config.logoUrl = appearance.logoUrl || serverConfig.logoUrl;
-    }
     if (serverConfig.displayName) this.config.displayName = serverConfig.displayName;
     if (serverConfig.backgroundColor) this.config.backgroundColor = serverConfig.backgroundColor;
     if (appearance.primaryColor || serverConfig.primaryColor) {
@@ -71,8 +71,7 @@ export class WidgetUI {
   }
 
   private shouldUseCustomIcon(): boolean {
-    const iconUrl = this.config.logoUrl;
-    return !!iconUrl && !iconUrl.includes('chat-icon.png') && !iconUrl.includes('Untitled-design');
+    return false;
   }
 
   /**
@@ -84,30 +83,6 @@ export class WidgetUI {
     if (!this.button) return;
 
     this.button.textContent = '';
-    const iconUrl = this.config.logoUrl;
-
-    if (this.shouldUseCustomIcon() && iconUrl) {
-      const img = document.createElement('img');
-      img.src = iconUrl;
-      img.alt = 'logo';
-      Object.assign(img.style, {
-        width: '34px',
-        height: '34px',
-        objectFit: 'contain',
-        borderRadius: '6px',
-        display: 'block',
-        pointerEvents: 'none',
-      });
-      img.addEventListener('error', () => {
-        img.remove();
-        if (this.button && !this.button.querySelector('svg')) {
-          this.button.insertAdjacentHTML('afterbegin', INTERAONE_LOGO_SVG);
-        }
-      });
-      this.button.appendChild(img);
-      return;
-    }
-
     this.button.innerHTML = INTERAONE_LOGO_SVG;
   }
 
@@ -145,7 +120,16 @@ export class WidgetUI {
     if (this.hostPaddingRight === null) {
       this.hostPaddingRight = body.style.paddingRight || '';
       this.hostTransition = body.style.transition || '';
+      this.hostOverflowY = body.style.overflowY || '';
+      this.hostScrollbarGutter = body.style.scrollbarGutter || '';
+      this.documentOverflowY = document.documentElement.style.overflowY || '';
+      this.documentScrollbarGutter = document.documentElement.style.scrollbarGutter || '';
     }
+
+    body.style.overflowY = 'scroll';
+    body.style.scrollbarGutter = 'stable';
+    document.documentElement.style.overflowY = 'scroll';
+    document.documentElement.style.scrollbarGutter = 'stable';
 
     const baseTransition = this.hostTransition || '';
     const paddingTransition = 'padding-right 0.24s ease-in-out';
@@ -169,6 +153,18 @@ export class WidgetUI {
     body.style.paddingRight = this.hostPaddingRight;
     if (this.hostTransition !== null) {
       body.style.transition = this.hostTransition;
+    }
+    if (this.hostOverflowY !== null) {
+      body.style.overflowY = this.hostOverflowY;
+    }
+    if (this.hostScrollbarGutter !== null) {
+      body.style.scrollbarGutter = this.hostScrollbarGutter;
+    }
+    if (this.documentOverflowY !== null) {
+      document.documentElement.style.overflowY = this.documentOverflowY;
+    }
+    if (this.documentScrollbarGutter !== null) {
+      document.documentElement.style.scrollbarGutter = this.documentScrollbarGutter;
     }
   }
 

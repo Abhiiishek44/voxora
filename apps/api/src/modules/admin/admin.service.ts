@@ -9,7 +9,6 @@ const DEFAULT_WIDGET_SETTINGS = {
     theme: "dark" as const,
     primaryColor: "#845C6C",
     welcomeMessage: "Hi there! How can we help you today?",
-    logoUrl: "",
   },
   behavior: {
     autoOpen: false,
@@ -44,8 +43,9 @@ function withWidgetConfigDefaults(input: any): any {
   output.appearance = {
     ...DEFAULT_WIDGET_SETTINGS.appearance,
     ...(input.appearance || {}),
-    logoUrl: input.appearance?.logoUrl ?? input.logoUrl ?? "",
   };
+  delete output.logoUrl;
+  delete output.appearance.logoUrl;
   output.behavior = { ...DEFAULT_WIDGET_SETTINGS.behavior, ...(input.behavior || {}) };
   output.ai = { ...DEFAULT_WIDGET_SETTINGS.ai, ...(input.ai || {}) };
   output.conversation = {
@@ -232,7 +232,6 @@ export class AdminService {
     const normalizedUpdateData = withWidgetConfigDefaults(updateData || {});
     const allowedUpdates = {
       displayName: normalizedUpdateData.displayName,
-      logoUrl: normalizedUpdateData.logoUrl,
       appearance: normalizedUpdateData.appearance,
       behavior: normalizedUpdateData.behavior,
       ai: normalizedUpdateData.ai,
@@ -254,7 +253,6 @@ export class AdminService {
       widget = new Widget({
         organizationId,
         displayName: normalizedUpdateData.displayName || "InteraOne AI",
-        logoUrl: normalizedUpdateData.logoUrl,
         appearance: normalizedUpdateData.appearance,
         behavior: normalizedUpdateData.behavior,
         ai: normalizedUpdateData.ai,

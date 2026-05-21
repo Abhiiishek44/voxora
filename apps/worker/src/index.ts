@@ -5,8 +5,11 @@ import { startEmailWorker } from "./workers/email.worker";
 import { startAnalyticsWorker } from "./workers/analytics.worker";
 import { startSubscriptionExpiryWorker } from "./workers/subscription-expiry.worker";
 import { isEeEnabled } from "./config";
+import logger from "./utils/logger";
 
-console.log("[InteraOne Worker] Starting platform worker service...");
+logger.info("Starting platform worker service", {
+  nodeEnv: process.env.NODE_ENV || "development",
+});
 
 const emailWorker = startEmailWorker();
 const analyticsWorker = startAnalyticsWorker();
@@ -18,16 +21,17 @@ const subscriptionExpiryWorker = isEeEnabled()
   : null;
 
 if (!subscriptionExpiryWorker) {
-  console.log("[InteraOne Worker] EE not enabled — subscription expiry worker skipped.");
+  logger.info("EE not enabled; subscription expiry worker skipped");
 }
 
 const shutdown = async (signal: string) => {
-  console.log(`[InteraOne Worker] Received ${signal}, shutting down gracefully...`);
+  logger.info("Received shutdown signal", { signal });
   await Promise.all([
     emailWorker.close(),
     analyticsWorker.close(),
     subscriptionExpiryWorker?.close(),
   ]);
+  logger.info("Platform worker shutdown completed", { signal });
   process.exit(0);
 };
 
@@ -35,6 +39,11 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
 process.on("unhandledRejection", (reason) => {
-  console.error("[InteraOne Worker] Unhandled rejection:", reason);
+  logger.error("Unhandled promise rejection", { reason });
+  process.exit(1);
+});
+
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught exception", { error });
   process.exit(1);
 });

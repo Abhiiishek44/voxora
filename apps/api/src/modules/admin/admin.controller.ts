@@ -67,8 +67,8 @@ export const resendInvite = asyncHandler(async (req: AuthenticatedRequest, res: 
 
 export const createWidget = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const body = { ...req.body };
-  if (body.logoUrl) body.logoUrl = normalizeLogoUrl(body.logoUrl);
-  if (body.appearance?.logoUrl) body.appearance.logoUrl = normalizeLogoUrl(body.appearance.logoUrl);
+  delete body.logoUrl;
+  if (body.appearance) delete body.appearance.logoUrl;
   const widget = await adminService.createWidget(req.user.activeOrganizationId, body);
   sendResponse(res, 201, true, "Widget created successfully", widget);
 });
@@ -77,24 +77,16 @@ export const getWidget = asyncHandler(async (req: AuthenticatedRequest, res: Res
   const result = await adminService.getWidget(req.user.activeOrganizationId);
   if (!result) return sendError(res, 404, "Widget not found");
   const widgetData: any = result.toObject ? result.toObject() : { ...result };
-
-  if (widgetData.logoUrl) {
-    const fileKey = normalizeLogoUrl(widgetData.logoUrl)!;
-    widgetData.logoUrl = toStorageProxyUrl(req, fileKey);
-  }
-
-  if (widgetData.appearance?.logoUrl) {
-    const fileKey = normalizeLogoUrl(widgetData.appearance.logoUrl)!;
-    widgetData.appearance.logoUrl = toStorageProxyUrl(req, fileKey);
-  }
+  delete widgetData.logoUrl;
+  if (widgetData.appearance) delete widgetData.appearance.logoUrl;
 
   sendResponse(res, 200, true, "Widget retrieved successfully", widgetData);
 });
 
 export const updateWidget = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const body = { ...req.body };
-  if (body.logoUrl) body.logoUrl = normalizeLogoUrl(body.logoUrl);
-  if (body.appearance?.logoUrl) body.appearance.logoUrl = normalizeLogoUrl(body.appearance.logoUrl);
+  delete body.logoUrl;
+  if (body.appearance) delete body.appearance.logoUrl;
   const widget = await adminService.updateWidget(req.user.activeOrganizationId, body);
   sendResponse(res, 200, true, "Widget updated successfully", widget);
 });
@@ -105,26 +97,3 @@ export const getDashboardStats = asyncHandler(async (req: AuthenticatedRequest, 
   const stats = await adminService.getDashboardStats(req.user.activeOrganizationId);
   sendResponse(res, 200, true, "Dashboard stats retrieved successfully", stats);
 });
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────────
-
-function normalizeLogoUrl(logoUrl: string | undefined): string | undefined {
-  if (!logoUrl) return logoUrl;
-  if (!/^https?:\/\//i.test(logoUrl)) return logoUrl; // already a raw fileKey
-  try {
-    const url = new URL(logoUrl);
-    // API storage proxy URL: /api/v1/storage/file?key=<fileKey>
-    const key = url.searchParams.get("key");
-    if (key) return key;
-    // Direct MinIO object URL: /<bucket>/<fileKey...>
-    const parts = url.pathname.split("/").filter(Boolean);
-    if (parts.length > 1) return parts.slice(1).join("/");
-  } catch { }
-  return logoUrl;
-}
-
-function toStorageProxyUrl(req: Request, fileKey: string): string {
-  const scheme = req.get("x-forwarded-proto") || req.protocol || "http";
-  const host = req.get("host") || "localhost:3002";
-  return `${scheme}://${host}/api/v1/storage/file?key=${encodeURIComponent(fileKey)}`;
-}

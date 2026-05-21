@@ -76,7 +76,40 @@ export const handleMessage = ({ socket, io }: { socket: any; io: any }) => {
 
         // Only process widget messages through the AI/routing pipeline
         if (messageMetadata.source !== "widget") {
-          tracker.trackMessage(conversation.organizationId.toString(), "agent");
+          const organizationId = conversation.organizationId.toString();
+          const agentId = socket.data?.user?.userId;
+          const startedAt = (conversation as any).metadata?.customer?.startedAt;
+
+          tracker.trackMessage(
+            organizationId,
+            "agent",
+            { messageLength: content.length },
+            { conversationId, agentId, channel: "web" },
+          );
+
+          if (startedAt) {
+            const responseTimeMs = Date.now() - new Date(startedAt).getTime();
+            const updateResult = await Conversation.updateOne(
+              { _id: conversationId, "metadata.firstAgentReplyAt": { $exists: false } },
+              {
+                $set: {
+                  "metadata.firstAgentReplyAt": new Date(),
+                  "metadata.firstAgentReplyBy": agentId || undefined,
+                },
+              },
+            );
+
+            if (updateResult.modifiedCount > 0) {
+              tracker.trackEvent(
+                organizationId,
+                "agent_first_response",
+                "agent",
+                { responseTimeMs },
+                { conversationId, agentId, channel: "web" },
+              );
+            }
+          }
+
           return;
         }
 
@@ -133,6 +166,14 @@ export const handleMessage = ({ socket, io }: { socket: any; io: any }) => {
               },
               $addToSet: { participants: agentId },
             });
+
+            tracker.trackEvent(
+              conversation.organizationId.toString(),
+              "agent_assigned",
+              "system",
+              { reason: "ai_disabled_auto_assign" },
+              { conversationId, agentId, channel: "widget" },
+            );
 
             const sm = getSocketManager();
             if (sm) {

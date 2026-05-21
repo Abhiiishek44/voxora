@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { Schema, Document } from "mongoose";
 import { Worker, Queue, ConnectionOptions } from "bullmq";
 import config from "../config";
+import logger from "../utils/logger";
 
 export const SUBSCRIPTION_EXPIRY_QUEUE = "subscription-expiry";
 
@@ -97,14 +98,15 @@ async function processSubscriptionExpiry(): Promise<void> {
       await Organization.findByIdAndUpdate(sub.organizationId, {
         $set: { plan: "free", subscriptionStatus: "cancelled", cancelAtPeriodEnd: false },
       });
-      console.log(
-        `[Subscription Expiry] Downgraded org ${sub.organizationId} — past_due grace period exceeded`,
-      );
+      logger.warn("Subscription downgraded after past_due grace period", {
+        organizationId: sub.organizationId,
+        reason: "past_due_grace_period_exceeded",
+      });
     } catch (err: any) {
-      console.error(
-        `[Subscription Expiry] Failed to downgrade org ${sub.organizationId}:`,
-        err.message,
-      );
+      logger.error("Failed to downgrade past_due subscription", {
+        organizationId: sub.organizationId,
+        error: err,
+      });
     }
   }
 
@@ -127,20 +129,22 @@ async function processSubscriptionExpiry(): Promise<void> {
       await Organization.findByIdAndUpdate(sub.organizationId, {
         $set: { plan: "free", subscriptionStatus: "cancelled", cancelAtPeriodEnd: false },
       });
-      console.log(
-        `[Subscription Expiry] Downgraded org ${sub.organizationId} — period ended with cancelAtPeriodEnd`,
-      );
+      logger.warn("Subscription downgraded after period ended", {
+        organizationId: sub.organizationId,
+        reason: "cancel_at_period_end_elapsed",
+      });
     } catch (err: any) {
-      console.error(
-        `[Subscription Expiry] Failed to downgrade org ${sub.organizationId}:`,
-        err.message,
-      );
+      logger.error("Failed to downgrade period-ended subscription", {
+        organizationId: sub.organizationId,
+        error: err,
+      });
     }
   }
 
-  console.log(
-    `[Subscription Expiry] Scan complete — past_due: ${pastDueExpired.length}, period-end: ${periodExpired.length}`,
-  );
+  logger.info("Subscription expiry scan completed", {
+    pastDueExpired: pastDueExpired.length,
+    periodExpired: periodExpired.length,
+  });
 }
 
 // ── Queue + Worker setup ──────────────────────────────────────────────────────
@@ -168,15 +172,27 @@ export function startSubscriptionExpiryWorker() {
   );
 
   worker.on("completed", () =>
-    console.log("[Subscription Expiry Worker] Scan job completed"),
+    logger.info("Subscription expiry job completed", {
+      queue: SUBSCRIPTION_EXPIRY_QUEUE,
+    }),
   );
   worker.on("failed", (_job, err) =>
-    console.error("[Subscription Expiry Worker] Job failed:", err.message),
+    logger.error("Subscription expiry job failed", {
+      queue: SUBSCRIPTION_EXPIRY_QUEUE,
+      error: err,
+    }),
   );
   worker.on("error", (err) =>
-    console.error("[Subscription Expiry Worker] Worker error:", err),
+    logger.error("Subscription expiry worker error", {
+      queue: SUBSCRIPTION_EXPIRY_QUEUE,
+      error: err,
+    }),
   );
 
-  console.log(`[Subscription Expiry Worker] Started — runs every 1h`);
+  logger.info("Subscription expiry worker started", {
+    queue: SUBSCRIPTION_EXPIRY_QUEUE,
+    intervalMs: 60 * 60 * 1000,
+  });
+
   return worker;
 }

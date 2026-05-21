@@ -1,7 +1,6 @@
 export interface WidgetAppearanceSettings {
   theme: "dark" | "light";
   welcomeMessage: string;
-  logoUrl?: string;
 }
 
 export interface WidgetBehaviorSettings {
@@ -37,8 +36,6 @@ export interface CreateWidgetData {
   _id?: string;
   displayName: string;
 
-  logoUrl: string;
-  logoFileKey?: string;
   appearance: WidgetAppearanceSettings;
   behavior: WidgetBehaviorSettings;
   ai: WidgetAiSettings;
@@ -50,7 +47,6 @@ export interface CreateWidgetData {
 export interface UpdateWidgetData {
   displayName?: string;
 
-  logoUrl?: string;
   appearance?: WidgetAppearanceSettings;
   behavior?: WidgetBehaviorSettings;
   ai?: WidgetAiSettings;

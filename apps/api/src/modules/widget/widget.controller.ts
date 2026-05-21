@@ -5,7 +5,6 @@ import { getSocketManager } from "@sockets/index";
 import logger from "@shared/utils/logger";
 import config from "@shared/config";
 import jwt from "jsonwebtoken";
-import { getPublicUrl } from "@shared/utils/storage";
 import { tracker } from "@shared/utils/tracker";
 
 const DEFAULT_WIDGET_CONFIG = {
@@ -13,7 +12,6 @@ const DEFAULT_WIDGET_CONFIG = {
     theme: "dark" as const,
     primaryColor: "#845C6C",
     welcomeMessage: "Hi there! How can we help you today?",
-    logoUrl: "",
   },
   backgroundColor: "#845C6C",
   behavior: {
@@ -108,7 +106,7 @@ export const getWidgetConfig = asyncHandler(
       }
 
       const widget = await Widget.findById(InteraOnePublicKey)
-        .select("organizationId displayName logoUrl backgroundColor appearance behavior ai conversation features suggestions")
+        .select("organizationId displayName backgroundColor appearance behavior ai conversation features suggestions")
         .lean();
 
       if (!widget) {
@@ -118,29 +116,26 @@ export const getWidgetConfig = asyncHandler(
       try {
         const organizationId = (widget as any).organizationId;
         if (organizationId) {
-          tracker.trackEvent(organizationId.toString(), "widget_load", "system");
+          tracker.trackEvent(
+            organizationId.toString(),
+            "widget_load",
+            "system",
+            {},
+            { widgetId: InteraOnePublicKey, channel: "widget" },
+          );
         }
       } catch (trackError: any) {
         logger.warn(`Widget tracking failed: ${trackError?.message || trackError}`);
       }
 
-      let logoUrl = (widget as any).logoUrl as string | undefined;
-      if (logoUrl) {
-        logoUrl = getPublicUrl(extractFileKey(logoUrl));
-      }
-
-      let appearanceLogoUrl = (widget as any).appearance?.logoUrl as string | undefined;
-      if (appearanceLogoUrl) {
-        appearanceLogoUrl = getPublicUrl(extractFileKey(appearanceLogoUrl));
-      }
+      const { logoUrl: _ignoredLogoUrl, ...appearance } = (widget as any).appearance || {};
 
       return sendResponse(res, 200, true, "Widget config fetched", {
         config: {
           displayName: (widget as any).displayName,
           appearance: {
             ...DEFAULT_WIDGET_CONFIG.appearance,
-            ...(widget as any).appearance,
-            logoUrl: appearanceLogoUrl || logoUrl || "",
+            ...appearance,
           },
           backgroundColor: (widget as any).backgroundColor || DEFAULT_WIDGET_CONFIG.backgroundColor,
           behavior: {
@@ -180,6 +175,32 @@ export const getWidgetConfig = asyncHandler(
     }
   },
 );
+
+export const trackQrScan = asyncHandler(async (req: Request, res: Response) => {
+  const { publicKey } = req.body as { publicKey?: string };
+
+  if (!publicKey) {
+    return sendError(res, 400, "Public key is required");
+  }
+
+  const widget = await Widget.findById(publicKey)
+    .select("organizationId")
+    .lean();
+
+  if (!widget) {
+    return sendError(res, 404, "Widget not found");
+  }
+
+  tracker.trackEvent(
+    (widget as any).organizationId.toString(),
+    "qr_scan",
+    "system",
+    {},
+    { widgetId: publicKey, channel: "qr" },
+  );
+
+  return sendResponse(res, 200, true, "QR scan tracked", {});
+});
 
 // ========================
 // WIDGET CONVERSATIONS
@@ -255,6 +276,22 @@ export const initConversation = asyncHandler(
 
       logger.info(
         `New conversation initialized: ${conversation.id} from widget`,
+      );
+
+      tracker.trackEvent(
+        organizationId.toString(),
+        "conversation_started",
+        "system",
+        {
+          isAnonymous,
+          department: department || null,
+          initialMessageLength: message.length,
+        },
+        {
+          conversationId: conversation.id,
+          widgetId: InteraOnePublicKey,
+          channel: "widget",
+        },
       );
 
       const sm = getSocketManager();
@@ -511,6 +548,14 @@ export const deleteConversation = asyncHandler(
         $set: { status: "closed", closedAt: new Date() },
       });
 
+      tracker.trackEvent(
+        conversation.organizationId.toString(),
+        "conversation_closed",
+        "system",
+        { reason: "visitor_closed" },
+        { conversationId, channel: "widget" },
+      );
+
       logger.info(`Widget conversation ${conversationId} closed by visitor`);
 
       return sendResponse(res, 200, true, "Conversation deleted successfully", {});
@@ -568,31 +613,3 @@ export const getConversationMessages = asyncHandler(
     }
   },
 );
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Normalize a stored logo URL / fileKey to a bare fileKey.
- *
- * Handles three forms that may exist in the database:
- *   1. Raw fileKey:            "knowledge/uuid.jpg"           → returned as-is
- *   2. API proxy URL:          "http://host/api/v1/storage/file?key=knowledge%2Fuuid.jpg"
- *                              → extracts via `?key=` param
- *   3. Direct MinIO URL / presigned URL:
- *      "http://minio:9001/bucket/knowledge/uuid.jpg?X-Amz-..."
- *                              → strips bucket prefix via pathname
- */
-function extractFileKey(value: string): string {
-  if (!value) return value;
-  if (!/^https?:\/\//i.test(value)) return value; // already a raw fileKey
-  try {
-    const u = new URL(value);
-    // API proxy pattern: /api/v1/storage/file?key=<fileKey>
-    const key = u.searchParams.get("key");
-    if (key) return key;
-    // Direct MinIO / presigned URL: /<bucket>/<fileKey...>
-    const parts = u.pathname.split("/").filter(Boolean);
-    if (parts.length > 1) return parts.slice(1).join("/");
-  } catch { }
-  return value;
-}

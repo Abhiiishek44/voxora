@@ -5,6 +5,8 @@ const WIDGET_SCRIPT_SRC =
   import.meta.env.VITE_WIDGET_URL ||
   "http://localhost:9001/interaone-widget/v1/InteraOne.js";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3002/api/v1";
+
 interface WindowWithInteraOneConfig extends Window {
   InteraOneConfig?: {
     publicKey: string;
@@ -52,6 +54,16 @@ export default function QRScannerLandingPage() {
       fullscreen: true,
       autoOpen: true,
     };
+
+    fetch(`${API_URL}/widget/qr-scan`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ publicKey }),
+    }).catch(() => {
+      // QR scan tracking is best-effort
+    });
 
     const script = document.createElement("script");
     script.id = "InteraOne-qr-script";

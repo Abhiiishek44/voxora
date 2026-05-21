@@ -15,12 +15,6 @@ export default function QRCodeGeneratorPage() {
   const orgRole = authApi.getOrgRole();
 
   const publicKey = widget?._id;
-  let companyLogoUrl = widget?.appearance?.logoUrl || widget?.logoUrl || INTERAONE_LOGO_BASE64;
-
-  // Force fallback if it's the old generic logo
-  if (companyLogoUrl.includes('logo.png') || companyLogoUrl.includes('chat-icon.png')) {
-    companyLogoUrl = INTERAONE_LOGO_BASE64;
-  }
   const companyName = widget?.displayName || "Your Company";
   const brandLabel = `${companyName}`;
 
@@ -111,7 +105,7 @@ export default function QRCodeGeneratorPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">QR Code Generator</h1>
+        <h1 className="text-2xl font-semibold text-foreground">QR Code</h1>
         <p className="text-sm text-muted-foreground">
           Share this branded code in physical spaces so customers can open your chat in one scan.
         </p>
@@ -164,7 +158,7 @@ export default function QRCodeGeneratorPage() {
                     bgColor="#ffffff"
                     fgColor="#111111"
                     imageSettings={{
-                      src: companyLogoUrl,
+                      src: INTERAONE_LOGO_BASE64,
                       height: 52,
                       width: 52,
                       excavate: true,
