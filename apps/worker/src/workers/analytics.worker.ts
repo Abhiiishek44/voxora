@@ -14,7 +14,7 @@ export interface AnalyticsJobData {
   userId?: string;
   agentId?: string;
   widgetId?: string;
-  channel?: "widget" | "web" | "api" | "qr";
+  channel?: "widget" | "web" | "mobile" | "api" | "qr";
   occurredAt?: string | Date;
   eventVersion?: string;
 }
@@ -54,7 +54,7 @@ function getModels() {
           userId: { type: String, index: true },
           agentId: { type: String, index: true },
           widgetId: { type: String, index: true },
-          channel: { type: String, enum: ["widget", "web", "api", "qr"] },
+          channel: { type: String, enum: ["widget", "web", "mobile", "api", "qr"] },
           eventVersion: { type: String, default: "1" },
           type: { type: String, required: true, index: true },
           category: { type: String, required: true, enum: ["ai", "agent", "system"], index: true },

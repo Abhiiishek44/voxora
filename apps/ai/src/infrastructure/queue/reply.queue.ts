@@ -8,6 +8,12 @@ const STREAM_CHANNEL = "ai:stream";
 export interface PublishPayload {
   conversationId: string;
   content: string;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    estimatedCostUsd?: number;
+  };
 }
 
 export interface StreamPayload {

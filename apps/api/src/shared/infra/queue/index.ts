@@ -49,7 +49,7 @@ export interface AnalyticsJobData {
 	userId?: string;
 	agentId?: string;
 	widgetId?: string;
-	channel?: "widget" | "web" | "api" | "qr";
+	channel?: "widget" | "web" | "mobile" | "api" | "qr";
 	occurredAt?: Date | string;
 	eventVersion?: string;
 }

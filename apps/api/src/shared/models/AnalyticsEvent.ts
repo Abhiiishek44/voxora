@@ -7,13 +7,17 @@ export type AnalyticsEventType =
   | "knowledge_view"
   | "qr_scan"
   | "conversation_started"
+  | "conversation_opened"
   | "conversation_closed"
   | "conversation_resolved"
   | "agent_assigned"
+  | "escalation_requested"
+  | "escalation_assigned"
   | "ai_response"
+  | "ai_token_usage"
   | "agent_first_response";
 
-export type AnalyticsEventChannel = "widget" | "web" | "api" | "qr";
+export type AnalyticsEventChannel = "widget" | "web" | "mobile" | "api" | "qr";
 
 export interface IAnalyticsEvent extends Document {
   organizationId: string;
@@ -37,7 +41,7 @@ const analyticsEventSchema = new Schema<IAnalyticsEvent>(
     userId: { type: String, index: true },
     agentId: { type: String, index: true },
     widgetId: { type: String, index: true },
-    channel: { type: String, enum: ["widget", "web", "api", "qr"] },
+    channel: { type: String, enum: ["widget", "web", "mobile", "api", "qr"] },
     eventVersion: { type: String, default: "1" },
     type: { type: String, required: true, index: true },
     category: { type: String, required: true, enum: ["ai", "agent", "system"], index: true },

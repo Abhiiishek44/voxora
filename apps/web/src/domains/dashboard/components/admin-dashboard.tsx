@@ -2,12 +2,12 @@ import { MetricCard } from "../components/metric-card";
 import { Card } from "@/shared/ui/card";
 import {
   MessageSquare,
-  Globe,
-  Bot,
+  CheckCircle2,
   Clock,
+  Users,
   UserCheck,
-  BookOpen,
-  QrCode,
+  Coins,
+  Wallet,
 } from "lucide-react";
 import {
   ChartContainer,
@@ -45,9 +45,16 @@ const conversationChartConfig = {
     label: "Resolved",
     color: "#10b981",
   },
-  closed: {
-    label: "Closed",
+  opened: {
+    label: "Open",
     color: "#f59e0b",
+  },
+};
+
+const aiCostChartConfig = {
+  estimatedCostUsd: {
+    label: "Cost (USD)",
+    color: "#2F6D6B",
   },
 };
 
@@ -63,6 +70,10 @@ export function AdminDashboard() {
   const { data: summary, isLoading: summaryLoading } = useAnalyticsSummary();
   const { data: trends, isLoading: trendsLoading } = useAnalyticsTrends(7);
 
+  const totalSource =
+    (summary?.source?.widget || 0) +
+    (summary?.source?.qr || 0);
+
   if (summaryLoading || trendsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -76,71 +87,70 @@ export function AdminDashboard() {
       <div>
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
         <p className="text-muted-foreground mt-1">
-          Support operations and team performance insights.
+          Organization performance, message flow, and cost visibility.
         </p>
       </div>
 
       {/* Main Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          title="Conversations Started"
+          title="Total Conversations"
           value={summary?.totalConversations || 0}
           icon={MessageSquare}
           description="Last 30 days"
         />
         <MetricCard
-          title="AI Deflection Rate"
-          value={`${summary?.aiDeflectionRate ?? 100}%`}
-          changeType="positive"
-          icon={Bot}
-          description="AI responses without fallback"
+          title="Resolved Conversations"
+          value={summary?.resolvedConversations || 0}
+          icon={CheckCircle2}
+          description="Resolved or closed"
+        />
+        <MetricCard
+          title="Users Served"
+          value={summary?.totalUsersServed || 0}
+          icon={Users}
+          description="Unique visitor sessions"
+        />
+        <MetricCard
+          title="Human Escalation Rate"
+          value={`${summary?.humanEscalationRate ?? 0}%`}
+          icon={UserCheck}
+          description="Conversations routed to agent"
+        />
+        <MetricCard
+          title="Avg Resolution Time"
+          value={formatDuration(summary?.avgResolutionTimeMs)}
+          icon={Clock}
+          description="From start to close/resolution"
         />
         <MetricCard
           title="Widget Loads"
           value={summary?.widgetLoads || 0}
-          icon={Globe}
-          description={`Conversion ${summary?.widgetConversionRate ?? 0}%`}
-        />
-        <MetricCard
-          title="Agent Assignments"
-          value={summary?.agentAssignments || 0}
-          icon={UserCheck}
+          icon={MessageSquare}
           description="Last 30 days"
         />
         <MetricCard
-          title="First Response"
-          value={formatDuration(summary?.avgFirstResponseTimeMs)}
-          icon={Clock}
-          description="Avg time to first reply"
+          title="AI Tokens Used"
+          value={summary?.aiCost?.totalTokens || 0}
+          icon={Coins}
+          description="Prompt + completion tokens"
         />
         <MetricCard
-          title="AI Messages"
-          value={summary?.aiMessages || 0}
-          icon={Bot}
-          description="Total AI replies"
-        />
-        <MetricCard
-          title="Knowledge Views"
-          value={summary?.knowledgeViews || 0}
-          icon={BookOpen}
-          description="Docs opened"
-        />
-        <MetricCard
-          title="QR Scans"
-          value={summary?.qrScans || 0}
-          icon={QrCode}
-          description="Chat entry scans"
+          title="Estimated AI Cost"
+          value={`$${(summary?.aiCost?.estimatedCostUsd || 0).toFixed(2)}`}
+          icon={Wallet}
+          description="Last 30 days"
         />
       </div>
 
       {/* Charts */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-1 xl:grid-cols-3">
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4">Message Volume (Last 7 Days)</h3>
-          <div className="h-87.5 w-full">
+          <div className="h-80 w-full">
             <ChartContainer config={messageChartConfig} className="h-full w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trends?.messages || []}>
+                <AreaChart data={trends?.messageVolume || []}>
                   <defs>
                     <linearGradient id="colorAi" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#845C6C" stopOpacity={0.3} />
@@ -194,10 +204,10 @@ export function AdminDashboard() {
 
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4">Conversation Outcomes (Last 7 Days)</h3>
-          <div className="h-87.5 w-full">
+          <div className="h-80 w-full">
             <ChartContainer config={conversationChartConfig} className="h-full w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trends?.conversations || []}>
+                <AreaChart data={trends?.conversationStatus || []}>
                   <defs>
                     <linearGradient id="colorStarted" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#845C6C" stopOpacity={0.25} />
@@ -207,7 +217,7 @@ export function AdminDashboard() {
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
-                    <linearGradient id="colorClosed" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="colorOpened" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
                       <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                     </linearGradient>
@@ -247,15 +257,102 @@ export function AdminDashboard() {
                   />
                   <Area
                     type="monotone"
-                    dataKey="closed"
+                    dataKey="opened"
                     stroke="#f59e0b"
                     strokeWidth={2}
                     fillOpacity={1}
-                    fill="url(#colorClosed)"
+                    fill="url(#colorOpened)"
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </ChartContainer>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">AI Cost Trend (Last 7 Days)</h3>
+          <div className="h-80 w-full">
+            <ChartContainer config={aiCostChartConfig} className="h-full w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trends?.aiCost || []}>
+                  <defs>
+                    <linearGradient id="colorAiCost" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2F6D6B" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#2F6D6B" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                  <XAxis
+                    dataKey="date"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                    tickFormatter={(str) => {
+                      const date = new Date(str);
+                      return date.toLocaleDateString("en-US", { weekday: "short" });
+                    }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area
+                    type="monotone"
+                    dataKey="estimatedCostUsd"
+                    stroke="#2F6D6B"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorAiCost)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Most Asked Questions</h3>
+          <div className="space-y-3">
+            {summary?.mostAskedQuestions?.length ? (
+              summary.mostAskedQuestions.map((q, index) => (
+                <div key={`${q.question}-${index}`} className="flex items-start justify-between gap-4 border-b border-border pb-2 last:border-b-0">
+                  <p className="text-sm text-foreground line-clamp-2">{q.question}</p>
+                  <p className="text-xs text-muted-foreground">{q.count}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No question data available.</p>
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Traffic Sources</h3>
+          <div className="space-y-4">
+            {[
+              { label: "Widget", value: summary?.source?.widget || 0 },
+              { label: "QR", value: summary?.source?.qr || 0 },
+            ].map((row) => {
+              const percent = totalSource > 0 ? Math.round((row.value / totalSource) * 100) : 0;
+              return (
+                <div key={row.label}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="text-foreground">{row.label}</span>
+                    <span className="text-muted-foreground">{row.value} ({percent}%)</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-muted">
+                    <div
+                      className="h-2 rounded-full bg-primary"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
       </div>

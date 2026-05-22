@@ -71,10 +71,17 @@ export async function runPipeline(job: AIJobData): Promise<void> {
   ];
 
   // -- 3. Generate response ----------------------------------------------------
-  let response: string;
+  let generatedText: string;
+  let usage:
+    | {
+        promptTokens?: number;
+        completionTokens?: number;
+        totalTokens?: number;
+      }
+    | undefined;
   try {
     const provider = getDefaultProvider();
-    response = await provider.generate(messages, {
+    const generated = await provider.generate(messages, {
       tools: getAllTools(),
       toolContext: {
         organizationId: job.organizationId,
@@ -92,6 +99,8 @@ export async function runPipeline(job: AIJobData): Promise<void> {
         );
       },
     });
+    generatedText = generated.text;
+    usage = generated.usage;
   } catch (providerErr) {
     console.error("[Pipeline] LLM provider threw an error:", providerErr);
     const canEscalate = job.fallbackToAgent !== false;
@@ -105,11 +114,11 @@ export async function runPipeline(job: AIJobData): Promise<void> {
   }
 
   console.log(
-    `[Pipeline] raw LLM response: ${response.slice(0, 200).replace(/\n/g, " ")}`,
+    `[Pipeline] raw LLM response: ${generatedText.slice(0, 200).replace(/\n/g, " ")}`,
   );
 
   // -- 4. Route: check for escalation sentinels -------------------------------
-  const escalation = detectEscalation(response);
+  const escalation = detectEscalation(generatedText);
 
   if (escalation) {
     console.log(`[Pipeline] Escalation detected - reason: "${escalation.reason}"`);
@@ -117,7 +126,7 @@ export async function runPipeline(job: AIJobData): Promise<void> {
 
     if (canEscalate) {
       if (escalation.cleanText) {
-        await publishResponse({ conversationId, content: escalation.cleanText });
+        await publishResponse({ conversationId, content: escalation.cleanText, usage });
       }
       await publishEscalation({
         conversationId,
@@ -139,5 +148,5 @@ export async function runPipeline(job: AIJobData): Promise<void> {
   }
 
   // -- 5. Publish regular response ---------------------------------------------
-  await publishResponse({ conversationId, content: response });
+  await publishResponse({ conversationId, content: generatedText, usage });
 }

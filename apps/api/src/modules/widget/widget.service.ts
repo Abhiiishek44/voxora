@@ -43,6 +43,36 @@ function withWidgetConfigDefaults(input: any): any {
 }
 
 export class WidgetService {
+  private isMobileUserAgent(userAgent?: string): boolean {
+    if (!userAgent) return false;
+    return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(userAgent);
+  }
+
+  private isQrReferrer(referrer?: string): boolean {
+    if (!referrer) return false;
+
+    try {
+      const parsed = new URL(referrer);
+      const get = (key: string) => (parsed.searchParams.get(key) || "").toLowerCase();
+
+      const source = get("source") || get("src") || get("utm_source") || get("entry");
+      const medium = get("utm_medium") || get("medium");
+      const campaign = get("utm_campaign") || get("campaign");
+      const qrFlag = get("qr") || get("is_qr");
+
+      if ([source, medium, campaign].some((v) => v.includes("qr"))) return true;
+      if (qrFlag === "1" || qrFlag === "true" || qrFlag === "yes") return true;
+
+      return /\bqr\b|qrcode/.test(parsed.pathname.toLowerCase());
+    } catch {
+      return /[?&](source|src|utm_source|entry)=qr\b|[?&](qr|is_qr)=(1|true|yes)\b/i.test(referrer);
+    }
+  }
+
+  shouldTrackMobileQrPageOpen(userAgent?: string, referrer?: string): boolean {
+    return this.isMobileUserAgent(userAgent) && this.isQrReferrer(referrer);
+  }
+
   async generateWidgetToken(InteraOnePublicKey: string, origin?: string, requestOrigin?: string) {
     if (!InteraOnePublicKey) {
       throw createServiceError("InteraOne public key is required", 400);
