@@ -1,8 +1,6 @@
 import { Request, Response } from "express";
 import StorageService from "./storage.service";
-import { downloadStream, statObject } from "@shared/utils/storage";
-import { INTERAONE_BUCKET } from "@shared/config/minio";
-import logger from "@shared/utils/logger";
+import logger from "@shared/core/logger";
 
 // Helper to ensure param is string (not string array)
 const getParamAsString = (param: string | string[] | undefined): string => {
@@ -24,7 +22,7 @@ export const storageController = {
       res.status(200).json({
         success: true,
         message: "Public URL generated",
-        data: { url, objectKey, bucket: INTERAONE_BUCKET },
+        data: { url, objectKey, bucket: StorageService.getBucketName() },
       });
     } catch (error) {
       logger.error(`Error generating public URL:`, error);
@@ -187,16 +185,11 @@ export const storageController = {
       return;
     }
     try {
-      const stat = await statObject(fileKey);
-      const contentType =
-        (stat.metaData as any)?.["content-type"] ||
-        (stat.metaData as any)?.["Content-Type"] ||
-        "application/octet-stream";
+      const { contentType, stream } = await StorageService.getProxyFilePayload(fileKey);
       res.setHeader("Content-Type", contentType);
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       // Allow cross-origin embedding (iframes on different origins loading this image).
       res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-      const stream = await downloadStream(fileKey);
       stream.pipe(res);
     } catch (err: any) {
       logger.warn(`proxyFile: object not found for key=${fileKey}`);

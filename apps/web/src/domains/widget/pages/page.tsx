@@ -10,7 +10,6 @@ import {
   WidgetAppearanceForm,
   WidgetHeader,
   WidgetInstallationCode,
-  WidgetProTip,
   WidgetSuggestionsForm,
 } from "@/domains/widget/components";
 
@@ -236,7 +235,6 @@ export function WidgetPage() {
               onSave={() => handleSubmit()}
               onReset={handleResetDefaults}
             />
-            <WidgetProTip />
           </div>
         </div>
       </div>

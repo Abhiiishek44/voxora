@@ -1,6 +1,6 @@
 import { Router } from "express";
 import NotificationController from "./notification.controller";
-import { authenticate, resolveOrganization } from "@shared/middleware/auth";
+import { authenticate, resolveOrganization } from "@shared/security/middleware/auth";
 
 const router = Router({ mergeParams: true });
 

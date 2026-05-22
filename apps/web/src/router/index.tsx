@@ -26,7 +26,7 @@ import { BillingPage } from "@/domains/settings/pages/billing-page";
 import { BillingSuccessPage } from "@/domains/settings/pages/billing-success-page";
 import { BillingFailedPage } from "@/domains/settings/pages/billing-failed-page";
 import { WhiteLabelPage } from "@/domains/settings/pages/white-label-page";
-import { CreateOrganizationPage } from "@/domains/organization/pages/create-organization-page";
+import { CreateOrganizationPage } from "@/domains/auth/pages/create-organization/page";
 import { DashboardLayout } from "@/shared/layouts/dashboard-layout";
 import { ProtectedRoute } from "@/domains/auth/components/protected-route";
 import { EeFeatureGate } from "@/shared/components/ee-feature-gate";
@@ -45,10 +45,6 @@ const router = createBrowserRouter([
     {
         path: "/auth/signup",
         element: <SetupPage />,
-    },
-    {
-        path: "/auth/setup",
-        element: <Navigate to="/auth/signup" replace />,
     },
     {
         path: "/auth/password-recovery",

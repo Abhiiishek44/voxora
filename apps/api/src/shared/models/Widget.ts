@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 import { IOrganization } from "./Organization";
-import { DEFAULT_WIDGET_SUGGESTIONS } from "@shared/constants/widget-defaults";
+import { DEFAULT_WIDGET_CONFIG } from "@shared/core/widget-default-config";
 
 export interface IWidget extends Document {
   organizationId: Types.ObjectId | IOrganization;
@@ -82,7 +82,7 @@ const WidgetSchema = new Schema<IWidget>(
           showOutside: { type: Boolean, default: false },
         },
       ],
-      default: DEFAULT_WIDGET_SUGGESTIONS,
+      default: DEFAULT_WIDGET_CONFIG.suggestions,
     },
     publicKey: { type: String, default: null },
   },

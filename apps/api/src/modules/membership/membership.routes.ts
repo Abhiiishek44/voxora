@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { MembershipController } from "./membership.controller";
-import { authenticate, resolveOrganization, requireRole, validateRequest, requireWithinLimit } from "@shared/middleware";
+import { authenticate, resolveOrganization, requireRole, validateRequest, requireWithinLimit } from "@shared/security/middleware";
 import { membershipSchema } from "./membership.schema";
 
 export const membershipRouter = Router();

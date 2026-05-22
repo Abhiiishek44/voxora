@@ -1,4 +1,4 @@
-import config from "@shared/config";
+import config from "@shared/infra/config";
 import {
   EmailTemplate,
   type EmailTemplateType,

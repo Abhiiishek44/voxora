@@ -1,0 +1,68 @@
+import jwt from "jsonwebtoken";
+import config from "@shared/infra/config";
+import { MembershipRole } from "@shared/models";
+
+export interface JWTPayload {
+  userId: string;
+  email: string;
+  activeOrganizationId: string;
+  type: "access" | "refresh";
+}
+
+export interface GenerateTokensInput {
+  userId: string;
+  email: string;
+  activeOrganizationId: string;
+}
+
+export const generateTokens = (payload: GenerateTokensInput) => {
+  if (!config.jwt.secret || !config.jwt.refreshSecret) {
+    throw new Error("JWT secrets are not configured");
+  }
+
+  const jwtSign = jwt.sign as any;
+
+  const accessToken = jwtSign(
+    { ...payload, type: "access" as const },
+    config.jwt.secret,
+    { expiresIn: config.jwt.expiresIn },
+  );
+
+  const refreshToken = jwtSign(
+    { ...payload, type: "refresh" as const },
+    config.jwt.refreshSecret,
+    { expiresIn: config.jwt.refreshExpiresIn },
+  );
+
+  return { accessToken, refreshToken };
+};
+
+export const verifyToken = (
+  token: string,
+  type: "access" | "refresh" = "access",
+): JWTPayload => {
+  const secret =
+    type === "access" ? config.jwt.secret : config.jwt.refreshSecret;
+
+  if (!secret) {
+    throw new Error(`JWT ${type} secret is not configured`);
+  }
+
+  try {
+    return jwt.verify(token, secret as string) as JWTPayload;
+  } catch (error) {
+    throw new Error(
+      `Invalid ${type} token: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+};
+
+export const extractTokenFromHeader = (authHeader?: string): string | null => {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+  return authHeader.substring(7);
+};
+
+export { MembershipRole };
+

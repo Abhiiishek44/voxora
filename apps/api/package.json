@@ -10,7 +10,7 @@
     "dev": "nodemon src/index.ts",
     "build": "tsc && tsc-alias",
     "start": "node dist/index.js",
-    "seed:email-templates": "ts-node -r tsconfig-paths/register src/scripts/seed-email-templates.ts",
+    "seed:email-templates": "ts-node -r tsconfig-paths/register src/scripts/seeds/email-templates.seed.ts",
     "test:ee-missing": "ts-node -r tsconfig-paths/register src/scripts/ee-missing-smoke.ts"
   },
   "keywords": [

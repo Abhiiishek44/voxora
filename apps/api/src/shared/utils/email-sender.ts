@@ -1,5 +1,5 @@
-import config from "@shared/config";
-import logger from "@shared/utils/logger";
+import config from "@shared/infra/config";
+import logger from "@shared/core/logger";
 
 export interface ResolvedFromEmail {
   name: string;

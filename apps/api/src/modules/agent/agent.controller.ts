@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { AgentService } from "./agent.service";
-import { sendResponse, sendError, asyncHandler } from "@shared/utils/response";
-import { AuthenticatedRequest } from "@shared/middleware/auth";
+import { sendResponse, sendError, asyncHandler } from "@shared/core/response";
+import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 
 const agentService = new AgentService();
 

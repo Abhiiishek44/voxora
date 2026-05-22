@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { AuthenticatedRequest } from "@shared/middleware";
-import { sendError, sendResponse } from "@shared/utils/response";
+import { AuthenticatedRequest } from "@shared/security/middleware";
+import { sendError, sendResponse } from "@shared/core/response";
 import { ContactsService } from "./contacts.service";
 import { loadEeModule } from "@shared/ee";
 

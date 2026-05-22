@@ -1,4 +1,4 @@
-import logger from "@shared/utils/logger";
+import logger from "@shared/core/logger";
 import { EeFeature, PlanTier, InteraOneMode } from "./policy";
 
 interface EeAuditEvent {

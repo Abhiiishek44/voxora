@@ -1,8 +1,8 @@
 import { Organization, Membership, MembershipRole, IOrganization, Widget } from "@shared/models";
-import { Types } from "mongoose";
-import { generateTokens } from "@shared/utils/auth";
+import { ClientSession, Types } from "mongoose";
+import { generateTokens } from "@shared/security/auth/jwt";
 import crypto from "crypto";
-import { DEFAULT_WIDGET_SUGGESTIONS } from "@shared/constants/widget-defaults";
+import { buildDefaultWidgetConfig } from "@shared/core/widget-default-config";
 
 export class OrganizationService {
     /**
@@ -11,56 +11,52 @@ export class OrganizationService {
     static async createOrganization(
         userId: string,
         data: { name: string; slug?: string },
+        options?: { session?: ClientSession },
     ): Promise<{
         organization: IOrganization;
         accessToken: string;
         refreshToken: string;
     }> {
+        const session = options?.session;
         let slug = data.slug ?? await this.generateAvailableSlug(data.name);
 
         const organization = new Organization({ name: data.name, slug });
-        await organization.save();
+        await organization.save({ session });
 
         if (!organization) {
             throw new Error("Failed to create organization");
         }
 
         // Auto-create a default widget for the new organization
-        await Widget.create({
-            organizationId: organization._id,
-            displayName: organization.name,
-            backgroundColor: "#845C6C",
-            appearance: {
-                primaryColor: "#845C6C",
-                textColor: "#ffffff",
-                position: "bottom-right",
-                launcherText: "Chat with us",
-                welcomeMessage: "Hi there! How can we help you today?",
-                logoUrl: "",
-            },
-            behavior: { autoOpen: false, showOnMobile: true, showOnDesktop: true },
-            ai: { enabled: true, model: "gpt-4o-mini", fallbackToAgent: true, autoAssign: true, assignmentStrategy: "least-loaded" },
-            conversation: { collectUserInfo: { name: true, email: true, phone: false } },
-            features: { endUserDomAccess: true },
-            suggestions: DEFAULT_WIDGET_SUGGESTIONS,
-            publicKey: crypto.randomBytes(16).toString("hex"),
-        });
+        const defaultWidgetConfig = buildDefaultWidgetConfig();
+        await Widget.create(
+            [{
+                organizationId: organization._id,
+                displayName: organization.name,
+                ...defaultWidgetConfig,
+                publicKey: crypto.randomBytes(16).toString("hex"),
+            }],
+            { session },
+        );
 
         // Create owner membership
-        await Membership.create({
-            userId: new Types.ObjectId(userId),
-            organizationId: organization._id,
-            role: "owner" as MembershipRole,
-            inviteStatus: "active",
-            activatedAt: new Date(),
-            permissions: [
-                "manage_teams",
-                "manage_agents",
-                "view_analytics",
-                "manage_settings",
-                "manage_members",
-            ],
-        });
+        await Membership.create(
+            [{
+                userId: new Types.ObjectId(userId),
+                organizationId: organization._id,
+                role: "owner" as MembershipRole,
+                inviteStatus: "active",
+                activatedAt: new Date(),
+                permissions: [
+                    "manage_teams",
+                    "manage_agents",
+                    "view_analytics",
+                    "manage_settings",
+                    "manage_members",
+                ],
+            }],
+            { session },
+        );
 
         // Issue tokens scoped to new org
         const { accessToken, refreshToken } = generateTokens({

@@ -1,5 +1,5 @@
 import { Conversation, Message, User, Membership } from "@shared/models";
-import logger from "@shared/utils/logger";
+import logger from "@shared/core/logger";
 
 export class ConversationService {
 

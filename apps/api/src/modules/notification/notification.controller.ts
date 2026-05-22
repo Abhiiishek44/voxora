@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { AuthenticatedRequest } from "@shared/middleware/auth";
+import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 import NotificationService from "./notification.service";
-import logger from "@shared/utils/logger";
-import { sendSuccess, sendError } from "@shared/utils/response";
+import logger from "@shared/core/logger";
+import { sendSuccess, sendError } from "@shared/core/response";
 
 class NotificationController {
   async getNotifications(req: Request, res: Response) {

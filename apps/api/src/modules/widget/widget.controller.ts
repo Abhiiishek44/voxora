@@ -1,42 +1,13 @@
 import { Request, Response } from "express";
-import { sendResponse, sendError, asyncHandler } from "@shared/utils/response";
-import { Conversation, Message, Widget } from "@shared/models";
+import { sendResponse, sendError, asyncHandler } from "@shared/core/response";
+import { Conversation, Message } from "@shared/models";
 import { getSocketManager } from "@sockets/index";
-import logger from "@shared/utils/logger";
-import config from "@shared/config";
-import jwt from "jsonwebtoken";
+import logger from "@shared/core/logger";
 import { tracker } from "@shared/utils/tracker";
-import { DEFAULT_WIDGET_SUGGESTIONS } from "@shared/constants/widget-defaults";
+import { AuthenticatedRequest } from "@shared/security/middleware";
+import { WidgetService } from "./widget.service";
 
-const DEFAULT_WIDGET_CONFIG = {
-  appearance: {
-    theme: "dark" as const,
-    primaryColor: "#845C6C",
-    welcomeMessage: "Hi there! How can we help you today?",
-  },
-  backgroundColor: "#845C6C",
-  behavior: {
-    autoOpen: false,
-    showOnMobile: true,
-    showOnDesktop: true,
-  },
-  ai: {
-    enabled: true,
-    model: "gpt-4o-mini",
-    fallbackToAgent: true,
-  },
-  conversation: {
-    collectUserInfo: {
-      name: true,
-      email: true,
-      phone: false,
-    },
-  },
-  features: {
-    endUserDomAccess: false,
-  },
-  suggestions: DEFAULT_WIDGET_SUGGESTIONS,
-};
+const widgetService = new WidgetService();
 
 // ========================
 // WIDGET AUTH & CONFIG
@@ -44,37 +15,24 @@ const DEFAULT_WIDGET_CONFIG = {
 
 export const generateWidgetToken = asyncHandler(
   async (req: Request, res: Response) => {
-    const { InteraOnePublicKey, origin } = req.body;
-
     try {
-      if (!InteraOnePublicKey) {
-        return sendError(res, 400, "InteraOne public key is required");
-      }
-
-      const widget = await Widget.findById(InteraOnePublicKey);
-
-      if (!widget) {
-        return sendError(res, 404, "Widget not found");
-      }
-
-      const widgetPayload = {
-        InteraOnePublicKey: InteraOnePublicKey,
-        displayName: widget.displayName || "Unknown Widget",
-        organizationId: widget.organizationId,
-        origin: origin || req.get("origin") || "unknown",
-        type: "widget_session",
-      };
-
-      const token = jwt.sign(widgetPayload, config.jwt.secret!, {
-        expiresIn: "24h",
-      });
+      const { InteraOnePublicKey, origin } = req.body;
+      const data = await widgetService.generateWidgetToken(
+        InteraOnePublicKey,
+        origin,
+        req.get("origin") || undefined,
+      );
 
       sendResponse(res, 200, true, "Widget token generated successfully", {
-        token,
-        expiresIn: "24h",
+        token: data.token,
+        expiresIn: data.expiresIn,
       });
     } catch (error: any) {
-      sendError(res, 500, "Failed to generate widget token: " + error.message);
+      sendError(
+        res,
+        error?.statusCode || 500,
+        error?.statusCode ? error.message : "Failed to generate widget token: " + error.message,
+      );
     }
   },
 );
@@ -102,21 +60,10 @@ export const getWidgetConfig = asyncHandler(
   async (req: Request, res: Response) => {
     try {
       const { InteraOnePublicKey } = req.query as { InteraOnePublicKey?: string };
-
-      if (!InteraOnePublicKey) {
-        return sendError(res, 400, "InteraOne public key is required");
-      }
-
-      const widget = await Widget.findById(InteraOnePublicKey)
-        .select("organizationId displayName backgroundColor appearance behavior ai conversation features suggestions")
-        .lean();
-
-      if (!widget) {
-        return sendError(res, 404, "Widget not found");
-      }
+      const data = await widgetService.getWidgetConfigByPublicKey(InteraOnePublicKey || "");
 
       try {
-        const organizationId = (widget as any).organizationId;
+        const organizationId = data.organizationId;
         if (organizationId) {
           tracker.trackEvent(
             organizationId.toString(),
@@ -130,40 +77,13 @@ export const getWidgetConfig = asyncHandler(
         logger.warn(`Widget tracking failed: ${trackError?.message || trackError}`);
       }
 
-      const { logoUrl: _ignoredLogoUrl, ...appearance } = (widget as any).appearance || {};
-
       return sendResponse(res, 200, true, "Widget config fetched", {
-        config: {
-          displayName: (widget as any).displayName,
-          appearance: {
-            ...DEFAULT_WIDGET_CONFIG.appearance,
-            ...appearance,
-          },
-          backgroundColor: (widget as any).backgroundColor || DEFAULT_WIDGET_CONFIG.backgroundColor,
-          behavior: {
-            ...DEFAULT_WIDGET_CONFIG.behavior,
-            ...((widget as any).behavior || {}),
-          },
-          ai: {
-            ...DEFAULT_WIDGET_CONFIG.ai,
-            ...((widget as any).ai || {}),
-          },
-          conversation: {
-            collectUserInfo: {
-              ...DEFAULT_WIDGET_CONFIG.conversation.collectUserInfo,
-              ...((widget as any).conversation?.collectUserInfo || {}),
-            },
-          },
-          features: {
-            ...DEFAULT_WIDGET_CONFIG.features,
-            ...((widget as any).features || {}),
-          },
-          suggestions: Array.isArray((widget as any).suggestions)
-            ? (widget as any).suggestions
-            : DEFAULT_WIDGET_CONFIG.suggestions,
-        },
+        config: data.config,
       });
     } catch (error: any) {
+      if (error?.statusCode) {
+        return sendError(res, error.statusCode, error.message);
+      }
       return sendError(
         res,
         500,
@@ -173,23 +93,44 @@ export const getWidgetConfig = asyncHandler(
   },
 );
 
+export const createWidget = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const body = { ...req.body };
+  delete body.logoUrl;
+  if (body.appearance) delete body.appearance.logoUrl;
+  const widget = await widgetService.createWidget(req.user.activeOrganizationId, body);
+  sendResponse(res, 201, true, "Widget created successfully", widget);
+});
+
+export const getWidget = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const result = await widgetService.getWidget(req.user.activeOrganizationId);
+  if (!result) return sendError(res, 404, "Widget not found");
+  const widgetData: any = result.toObject ? result.toObject() : { ...result };
+  delete widgetData.logoUrl;
+  if (widgetData.appearance) delete widgetData.appearance.logoUrl;
+
+  sendResponse(res, 200, true, "Widget retrieved successfully", widgetData);
+});
+
+export const updateWidget = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const body = { ...req.body };
+  delete body.logoUrl;
+  if (body.appearance) delete body.appearance.logoUrl;
+  const widget = await widgetService.updateWidget(req.user.activeOrganizationId, body);
+  sendResponse(res, 200, true, "Widget updated successfully", widget);
+});
+
 export const trackQrScan = asyncHandler(async (req: Request, res: Response) => {
   const { publicKey } = req.body as { publicKey?: string };
 
-  if (!publicKey) {
-    return sendError(res, 400, "Public key is required");
-  }
-
-  const widget = await Widget.findById(publicKey)
-    .select("organizationId")
-    .lean();
-
-  if (!widget) {
-    return sendError(res, 404, "Widget not found");
+  let organizationId: string;
+  try {
+    organizationId = await widgetService.getOrganizationIdByPublicKey(publicKey || "");
+  } catch (error: any) {
+    return sendError(res, error?.statusCode || 500, error.message);
   }
 
   tracker.trackEvent(
-    (widget as any).organizationId.toString(),
+    organizationId,
     "qr_scan",
     "system",
     {},

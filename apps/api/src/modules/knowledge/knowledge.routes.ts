@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { authenticate, requireRole, requireWithinLimit } from "@shared/middleware";
-import { validateRequest } from "@shared/middleware/validation";
+import { authenticate, requireRole, requireWithinLimit } from "@shared/security/middleware";
+import { validateRequest } from "@shared/security/middleware/validation";
 import {
   getKnowledgeItems,
   requestFileUpload,

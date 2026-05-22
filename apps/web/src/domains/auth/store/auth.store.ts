@@ -23,7 +23,39 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set) => {
+      const completeSignupAction = async (data: any, errorMessage = "Signup completion failed") => {
+        try {
+          const response = await authApi.completeSignup(data);
+
+          if (response.success && response.data) {
+            const { user, accessToken, role, organization: signupOrg } = response.data;
+
+            if (accessToken) authApi.setToken(accessToken);
+            if (signupOrg?._id) authApi.setActiveOrgId(signupOrg._id);
+            if (role) authApi.setOrgRole(role);
+            if (signupOrg?.plan) authApi.setOrgPlan(signupOrg.plan);
+
+            authApi.setUser(user);
+            set({
+              user,
+              organization: signupOrg,
+              isAuthenticated: true,
+            });
+
+            // Redirect to dashboard
+            window.location.href = "/dashboard";
+            return;
+          }
+
+          throw new Error(response.message || errorMessage);
+        } catch (error) {
+          console.error("Complete signup error:", error);
+          throw error;
+        }
+      };
+
+      return {
       user: null,
       organization: null,
       isLoading: false,
@@ -96,33 +128,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       signup: async (signupPayload: SignupPayload) => {
-        try {
-          const response = await authApi.signup(signupPayload);
-
-          if (response.success && response.data) {
-            const { user, accessToken, role, organization: signupOrg } = response.data;
-
-            if (accessToken) authApi.setToken(accessToken);
-            if (signupOrg?._id) authApi.setActiveOrgId(signupOrg._id);
-            if (role) authApi.setOrgRole(role);
-            if (signupOrg?.plan) authApi.setOrgPlan(signupOrg.plan);
-
-            authApi.setUser(user);
-            set({
-              user,
-              organization: signupOrg,
-              isAuthenticated: true,
-            });
-
-            // Redirect to dashboard
-            window.location.href = "/dashboard";
-          } else {
-            throw new Error(response.message || "Signup failed");
-          }
-        } catch (error) {
-          console.error("Signup error:", error);
-          throw error;
-        }
+        return completeSignupAction(signupPayload, "Signup failed");
       },
 
       acceptInvite: async (token: string, password?: string) => {
@@ -169,36 +175,11 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       completeSignup: async (data: any) => {
-        try {
-          const response = await authApi.completeSignup(data);
-
-          if (response.success && response.data) {
-            const { user, accessToken, role, organization: signupOrg } = response.data;
-
-            if (accessToken) authApi.setToken(accessToken);
-            if (signupOrg?._id) authApi.setActiveOrgId(signupOrg._id);
-            if (role) authApi.setOrgRole(role);
-            if (signupOrg?.plan) authApi.setOrgPlan(signupOrg.plan);
-
-            authApi.setUser(user);
-            set({
-              user,
-              organization: signupOrg,
-              isAuthenticated: true,
-            });
-
-            // Redirect to dashboard
-            window.location.href = "/dashboard";
-          } else {
-            throw new Error(response.message || "Signup completion failed");
-          }
-        } catch (error) {
-          console.error("Complete signup error:", error);
-          throw error;
-        }
+        return completeSignupAction(data, "Signup completion failed");
       },
 
-    }),
+    };
+    },
     {
       name: "auth-storage",
       partialize: (state) => ({

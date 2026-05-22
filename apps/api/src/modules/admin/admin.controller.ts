@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import { AdminService } from "./admin.service";
 import { MembershipService } from "@modules/membership/membership.service";
-import { sendResponse, sendError, asyncHandler } from "@shared/utils/response";
-import { AuthenticatedRequest } from "@shared/middleware/auth";
+import { sendResponse, sendError, asyncHandler } from "@shared/core/response";
+import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 import { MembershipRole } from "@shared/models";
 
 const adminService = new AdminService();
@@ -61,34 +61,6 @@ export const deleteAgent = asyncHandler(async (req: AuthenticatedRequest, res: R
 
 export const resendInvite = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   sendError(res, 410, "Use POST /memberships/organizations/:orgId/members/invite instead");
-});
-
-// ─── WIDGET ──────────────────────────────────────────────────────────────────────
-
-export const createWidget = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const body = { ...req.body };
-  delete body.logoUrl;
-  if (body.appearance) delete body.appearance.logoUrl;
-  const widget = await adminService.createWidget(req.user.activeOrganizationId, body);
-  sendResponse(res, 201, true, "Widget created successfully", widget);
-});
-
-export const getWidget = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const result = await adminService.getWidget(req.user.activeOrganizationId);
-  if (!result) return sendError(res, 404, "Widget not found");
-  const widgetData: any = result.toObject ? result.toObject() : { ...result };
-  delete widgetData.logoUrl;
-  if (widgetData.appearance) delete widgetData.appearance.logoUrl;
-
-  sendResponse(res, 200, true, "Widget retrieved successfully", widgetData);
-});
-
-export const updateWidget = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const body = { ...req.body };
-  delete body.logoUrl;
-  if (body.appearance) delete body.appearance.logoUrl;
-  const widget = await adminService.updateWidget(req.user.activeOrganizationId, body);
-  sendResponse(res, 200, true, "Widget updated successfully", widget);
 });
 
 // ─── DASHBOARD STATS ─────────────────────────────────────────────────────────────

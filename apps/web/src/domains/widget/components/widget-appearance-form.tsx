@@ -21,7 +21,6 @@ export function WidgetAppearanceForm({
   return (
     <div className="rounded-2xl border border-border bg-card/60 backdrop-blur-xl overflow-hidden">
       <div className="p-6 lg:p-8">
-        <h2 className="text-xl font-semibold mb-6">Appearance</h2>
 
         <form onSubmit={onSubmit} className="space-y-8">
           <div className="space-y-3">

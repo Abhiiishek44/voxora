@@ -27,7 +27,6 @@ const billingCheckoutIntentSchema = new Schema<IBillingCheckoutIntent>(
   { timestamps: true },
 );
 
-billingCheckoutIntentSchema.index({ checkoutSessionId: 1 }, { unique: true });
 billingCheckoutIntentSchema.index({ organizationId: 1, createdAt: -1 });
 billingCheckoutIntentSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
 

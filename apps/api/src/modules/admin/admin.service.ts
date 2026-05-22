@@ -1,67 +1,5 @@
 import mongoose from "mongoose";
-import crypto from "crypto";
-import { Widget, Membership, MembershipRole } from "@shared/models";
-import logger from "@shared/utils/logger";
-import { DEFAULT_WIDGET_SUGGESTIONS } from "@shared/constants/widget-defaults";
-
-const DEFAULT_WIDGET_SETTINGS = {
-  backgroundColor: "#845C6C",
-  appearance: {
-    theme: "dark" as const,
-    primaryColor: "#845C6C",
-    welcomeMessage: "Hi there! How can we help you today?",
-  },
-  behavior: {
-    autoOpen: false,
-    showOnMobile: true,
-    showOnDesktop: true,
-  },
-  ai: {
-    enabled: true,
-    model: "gpt-4o-mini",
-    fallbackToAgent: true,
-  },
-  conversation: {
-    collectUserInfo: {
-      name: true,
-      email: true,
-      phone: false,
-    },
-  },
-  features: {
-    endUserDomAccess: false,
-  },
-  suggestions: DEFAULT_WIDGET_SUGGESTIONS,
-};
-
-function withWidgetConfigDefaults(input: any): any {
-  const output = { ...input };
-  output.appearance = {
-    ...DEFAULT_WIDGET_SETTINGS.appearance,
-    ...(input.appearance || {}),
-  };
-  delete output.logoUrl;
-  delete output.appearance.logoUrl;
-  output.behavior = { ...DEFAULT_WIDGET_SETTINGS.behavior, ...(input.behavior || {}) };
-  output.ai = { ...DEFAULT_WIDGET_SETTINGS.ai, ...(input.ai || {}) };
-  output.conversation = {
-    collectUserInfo: {
-      ...DEFAULT_WIDGET_SETTINGS.conversation.collectUserInfo,
-      ...(input.conversation?.collectUserInfo || {}),
-    },
-  };
-  output.features = { ...DEFAULT_WIDGET_SETTINGS.features, ...(input.features || {}) };
-  // suggestions: use caller's value if provided (even empty array), otherwise keep defaults
-  if (Array.isArray(input.suggestions)) {
-    output.suggestions = input.suggestions.slice(0, 4).map((s: any) => ({
-      text: String(s.text || "").trim(),
-      showOutside: Boolean(s.showOutside),
-    })).filter((s: any) => s.text.length > 0);
-  } else if (!output.suggestions) {
-    output.suggestions = DEFAULT_WIDGET_SETTINGS.suggestions;
-  }
-  return output;
-}
+import { Membership, MembershipRole } from "@shared/models";
 
 export class AdminService {
   // ═══════════════════════════════════════════════════
@@ -83,7 +21,7 @@ export class AdminService {
     if (status) memberQuery["$lookup.status"] = status;
 
     const members = await Membership.find(memberQuery)
-      .populate("userId", "name email avatar status lastSeen isActive")
+      .populate("userId", "name email status lastSeen isActive")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
@@ -112,7 +50,7 @@ export class AdminService {
     if (!mongoose.Types.ObjectId.isValid(userId)) throw new Error("Invalid user ID");
 
     const membership = await Membership.findOne({ userId, organizationId })
-      .populate("userId", "name email avatar status lastSeen");
+      .populate("userId", "name email status lastSeen");
 
     return membership;
   }
@@ -131,7 +69,7 @@ export class AdminService {
       updateFields,
       { new: true, runValidators: true },
     )
-      .populate("userId", "name email avatar status");
+      .populate("userId", "name email status");
 
     if (!membership) {
       return { success: false, message: "Agent not found in this organization", statusCode: 404 };
@@ -156,110 +94,6 @@ export class AdminService {
 
     await Membership.findByIdAndDelete(membership._id);
     return { success: true };
-  }
-
-  // ═══════════════════════════════════════════════════
-  //  WIDGET MANAGEMENT
-  // ═══════════════════════════════════════════════════
-
-  async createWidget(organizationId: string, widgetData: any) {
-    const normalizedWidgetData = withWidgetConfigDefaults(widgetData || {});
-    const existingWidget = await Widget.findOne({ organizationId });
-
-    if (existingWidget) {
-      const updated = await Widget.findOneAndUpdate(
-        { organizationId },
-        { ...normalizedWidgetData, organizationId },
-        { new: true, runValidators: true },
-      );
-      return updated;
-    }
-
-    const widget = new Widget({
-      ...normalizedWidgetData,
-      organizationId,
-    });
-
-    await widget.save();
-
-    logger.info("Widget created successfully", {
-      widgetId: widget._id,
-      organizationId,
-      displayName: widget.displayName,
-    });
-
-    return widget;
-  }
-
-  async getWidget(organizationId: string) {
-    let widget = await Widget.findOne({ organizationId });
-
-    if (!widget) {
-      widget = new Widget({
-        organizationId,
-        displayName: "InteraOne AI",
-        ...DEFAULT_WIDGET_SETTINGS,
-        publicKey: crypto.randomBytes(16).toString("hex"),
-      });
-      await widget.save();
-      logger.info(`Auto-created default widget for org ${organizationId}`);
-    } else {
-      const normalizedExisting = withWidgetConfigDefaults(widget.toObject());
-      const needsBackfill =
-        !widget.appearance ||
-        !widget.behavior ||
-        !widget.ai ||
-        !widget.conversation ||
-        !widget.features;
-
-      if (needsBackfill) {
-        await Widget.updateOne({ _id: widget._id }, normalizedExisting, {
-          runValidators: true,
-        });
-        const refreshedWidget = await Widget.findById(widget._id);
-        if (refreshedWidget) widget = refreshedWidget;
-      }
-    }
-
-    return widget;
-  }
-
-  async updateWidget(organizationId: string, updateData: any) {
-    const normalizedUpdateData = withWidgetConfigDefaults(updateData || {});
-    const allowedUpdates = {
-      displayName: normalizedUpdateData.displayName,
-      appearance: normalizedUpdateData.appearance,
-      behavior: normalizedUpdateData.behavior,
-      ai: normalizedUpdateData.ai,
-      conversation: normalizedUpdateData.conversation,
-      features: normalizedUpdateData.features,
-      suggestions: normalizedUpdateData.suggestions,
-    };
-
-    const cleanUpdates = Object.fromEntries(
-      Object.entries(allowedUpdates).filter(([_, v]) => v !== undefined),
-    );
-
-    let widget = await Widget.findOneAndUpdate({ organizationId }, cleanUpdates, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!widget) {
-      widget = new Widget({
-        organizationId,
-        displayName: normalizedUpdateData.displayName || "InteraOne AI",
-        appearance: normalizedUpdateData.appearance,
-        behavior: normalizedUpdateData.behavior,
-        ai: normalizedUpdateData.ai,
-        conversation: normalizedUpdateData.conversation,
-        features: normalizedUpdateData.features,
-        publicKey: crypto.randomBytes(16).toString("hex"),
-      });
-      await widget.save();
-    }
-
-    return widget;
   }
 
   // ═══════════════════════════════════════════════════

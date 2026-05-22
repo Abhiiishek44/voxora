@@ -3,7 +3,6 @@ import type { User } from "../../../shared/types/types";
 import type {
   LoginPayload,
   LoginResponse,
-  SignupPayload,
   SignupResponse,
   AcceptInviteResponse,
   OrganizationResponse,
@@ -18,16 +17,6 @@ import type {
 class AuthApi {
   async login(data: LoginPayload): Promise<LoginResponse> {
     return apiClient.post<LoginResponse>("/auth/login", data);
-  }
-
-  async signup(data: SignupPayload): Promise<SignupResponse> {
-    const response = await apiClient.post<SignupResponse>("/auth/setup", {
-      name: data.name,
-      email: data.email,
-      password: data.password,
-      companyName: data.companyName,
-    });
-    return response;
   }
 
   async initiateSignup(data: { name: string; email: string }): Promise<any> {
@@ -179,12 +168,12 @@ class AuthApi {
     });
   }
 
-  async verifyOTP(email: string, code: string, type: string): Promise<any> {
+  async verifyOTP(email: string, code: string, type: "email_verification" | "password_reset"): Promise<any> {
     return apiClient.post("/auth/verify-otp", { email, code, type });
   }
 
-  async sendEmailVerification(email: string, verificationMethod: "link" | "otp"): Promise<any> {
-    return apiClient.post("/auth/send-email-verification", { email, verificationMethod });
+  async sendEmailVerification(email: string): Promise<any> {
+    return apiClient.post("/auth/send-email-verification", { email });
   }
 
   async verifyEmailLink(token: string): Promise<any> {
@@ -195,7 +184,7 @@ class AuthApi {
     return apiClient.get(`/auth/email-verification-status?email=${encodeURIComponent(email)}`);
   }
 
-  async resendOTP(email: string, type: string): Promise<any> {
+  async resendOTP(email: string, type: "email_verification" | "password_reset"): Promise<any> {
     return apiClient.post("/auth/resend-otp", { email, type });
   }
 

@@ -42,13 +42,13 @@ export function WidgetInstallationCode({
         {/* Code panel — 3 cols */}
         <div className="lg:col-span-3 p-5 lg:p-6">
           {/* Editor chrome */}
-          <div className="rounded-xl overflow-hidden border border-border/70 bg-[#0d0d0f]">
+          <div className="rounded-xl overflow-hidden border border-border bg-muted/50">
             {/* Titlebar */}
-            <div className="flex items-center justify-between px-4 py-2.5 bg-[#151518] border-b border-white/[0.06]">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-card border-b border-border/70">
               <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+                <div className="w-2.5 h-2.5 rounded-full bg-destructive/80" />
+                <div className="w-2.5 h-2.5 rounded-full bg-warning/80" />
+                <div className="w-2.5 h-2.5 rounded-full bg-success/80" />
               </div>
               <span className="text-[11px] text-muted-foreground font-medium tracking-wide">index.html</span>
               <button
@@ -56,7 +56,7 @@ export function WidgetInstallationCode({
                 onClick={onCopy}
                 className={`cursor-pointer inline-flex items-center gap-1.5 h-7 px-3 rounded-md text-[11px] font-semibold border transition-all duration-200 ${isCopied
                     ? "bg-primary/15 border-primary/30 text-primary"
-                    : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:border-white/20 hover:text-white/80"
+                    : "bg-background/70 border-border text-muted-foreground hover:bg-accent/70 hover:border-primary/20 hover:text-foreground"
                   }`}
               >
                 {isCopied ? (
@@ -70,25 +70,25 @@ export function WidgetInstallationCode({
             {/* Line numbers + code */}
             <div className="flex overflow-x-auto">
               {/* Line numbers */}
-              <div className="select-none px-3 py-4 text-right text-[12px] leading-6 text-white/20 font-mono border-r border-white/[0.04] flex-shrink-0">
+              <div className="select-none px-3 py-4 text-right text-[12px] leading-6 text-muted-foreground/60 font-mono border-r border-border/70 flex-shrink-0">
                 {snippet.split("\n").map((_, i) => (
                   <div key={i}>{i + 1}</div>
                 ))}
               </div>
               {/* Code */}
-              <pre className="py-4 px-4 text-[13px] leading-6 font-mono flex-1 min-w-0">
+              <pre className="py-4 px-4 text-[13px] leading-6 font-mono text-foreground flex-1 min-w-0">
                 {snippet.split("\n").map((line, i) => (
                   <div key={i} className="whitespace-pre">
                     {line.startsWith("  ") ? (
-                      <><span className="text-white/30">{"  "}</span><span className="text-emerald-400/90">{line.trimStart()}</span></>
+                      <><span className="text-muted-foreground/50">{"  "}</span><span className="text-primary/90">{line.trimStart()}</span></>
                     ) : line.startsWith("<script") ? (
-                      <><span className="text-sky-400/90">&lt;</span><span className="text-violet-400">script</span></>
+                      <><span className="text-info/90">&lt;</span><span className="text-primary">script</span></>
                     ) : line === "</script>" ? (
-                      <><span className="text-sky-400/90">&lt;/</span><span className="text-violet-400">script</span><span className="text-sky-400/90">&gt;</span></>
+                      <><span className="text-info/90">&lt;/</span><span className="text-primary">script</span><span className="text-info/90">&gt;</span></>
                     ) : line === "  async>" ? (
-                      <><span className="text-white/30">{"  "}</span><span className="text-amber-400/90">async</span><span className="text-sky-400/90">&gt;</span></>
+                      <><span className="text-muted-foreground/50">{"  "}</span><span className="text-warning">async</span><span className="text-info/90">&gt;</span></>
                     ) : (
-                      <span className="text-zinc-300">{line}</span>
+                      <span className="text-foreground/90">{line}</span>
                     )}
                   </div>
                 ))}

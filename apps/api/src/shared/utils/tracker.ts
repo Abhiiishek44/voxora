@@ -1,6 +1,7 @@
+import { analyticsQueue } from "@shared/infra/queue";
 import { AnalyticsEventType, AnalyticsEventChannel } from "../models";
-import { analyticsQueue } from "../config/queue";
-import logger from "./logger";
+import { logger } from "@shared/core";
+
 
 interface AnalyticsEventContext {
   conversationId?: string;
@@ -44,7 +45,7 @@ export const tracker = {
         removeOnComplete: true,
         removeOnFail: false,
       }
-    ).catch((err) => {
+    ).catch((err: unknown) => {
       logger.error(`[Tracker] Failed to enqueue event ${type}:`, err);
     });
   },
