@@ -4,8 +4,8 @@ import {
   authenticate as auth,
   resolveOrganization,
   requireRole,
-} from "@shared/middleware";
-import { validateRequest } from "@shared/middleware";
+  validateRequest,
+} from "@shared/security/middleware";
 import { conversationSchema } from "./conversation.schema";
 
 const router = Router();

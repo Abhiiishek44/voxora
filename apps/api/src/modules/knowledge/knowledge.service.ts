@@ -1,7 +1,7 @@
 import StorageService from "@modules/storage/storage.service";
 import { Knowledge, Notification } from "@shared/models";
-import { ingestionQueue } from "@shared/config/queue";
-import logger from "@shared/utils/logger";
+import { ingestionQueue } from "@shared/infra/queue";
+import logger from "@shared/core/logger";
 import { getSocketManager } from "../../sockets/index";
 
 class KnowledgeService {

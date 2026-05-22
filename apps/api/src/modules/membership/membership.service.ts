@@ -11,7 +11,7 @@ export class MembershipService {
         const memberships = await Membership.find({
             organizationId,
             inviteStatus: { $in: ["active", "pending", "inactive"] },
-        }).populate("userId", "name email avatar status lastSeen");
+        }).populate("userId", "name email status lastSeen");
 
         return memberships.map((m) => ({
             membershipId: m._id,

@@ -1,8 +1,8 @@
-import { redisClient } from "@shared/config/redis";
+import { redisClient } from "@shared/infra/redis";
 import { Conversation, Message, Membership } from "@shared/models";
-import { incrementMessageUsage } from "@shared/middleware";
+import { incrementMessageUsage } from "@shared/security/middleware";
 import { tracker } from "@shared/utils/tracker";
-import logger from "@shared/utils/logger";
+import logger from "@shared/core/logger";
 import type SocketManager from "@sockets/index";
 
 const PUBSUB_CHANNEL = "ai:response";

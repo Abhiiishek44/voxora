@@ -1,6 +1,6 @@
-import { minioClient, INTERAONE_BUCKET } from "@shared/config/minio";
+import { minioClient, INTERAONE_BUCKET } from "@shared/infra/minio";
 import type { Readable } from "stream";
-import config from "@shared/config";
+import config from "@shared/infra/config";
 
 // ── Public URL ────────────────────────────────────────────────────────────────
 

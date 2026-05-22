@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
 import { MembershipService } from "./membership.service";
-import { AuthenticatedRequest } from "@shared/middleware";
-import { sendResponse, sendError } from "@shared/utils/response";
+import { AuthenticatedRequest } from "@shared/security/middleware";
+import { sendResponse, sendError } from "@shared/core/response";
 import { MembershipRole } from "@shared/models";
-import { generateTokens } from "@shared/utils/auth";
-import config from "@shared/config";
+import { generateTokens } from "@shared/security/auth/jwt";
+import config from "@shared/infra/config";
 
 export class MembershipController {
     static async listMembers(req: Request, res: Response): Promise<void> {

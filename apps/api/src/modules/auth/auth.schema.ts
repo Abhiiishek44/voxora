@@ -40,4 +40,15 @@ export const authSchema = {
     code: Joi.string().length(6).required(),
     newPassword: Joi.string().min(8).required(),
   }),
+
+  verifyOTP: Joi.object({
+    email: Joi.string().email().required(),
+    code: Joi.string().length(6).required(),
+    type: Joi.string().valid("email_verification", "password_reset").required(),
+  }),
+
+  resendOTP: Joi.object({
+    email: Joi.string().email().required(),
+    type: Joi.string().valid("email_verification", "password_reset").required(),
+  }),
 };

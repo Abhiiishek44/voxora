@@ -1,5 +1,5 @@
 import { Queue, ConnectionOptions } from "bullmq";
-import config from "@shared/config";
+import config from "@shared/infra/config";
 import {
   isEmailEnabled,
   buildInviteEmail,

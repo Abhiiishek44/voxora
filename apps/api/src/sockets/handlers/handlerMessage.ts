@@ -1,6 +1,6 @@
 import { Message, Conversation, Widget } from "@shared/models";
-import logger from "@shared/utils/logger";
-import { aiQueue } from "@shared/config/queue";
+import logger from "@shared/core/logger";
+import { aiQueue } from "@shared/infra/queue";
 import { getSocketManager } from "@sockets/index";
 import { ConversationService } from "@modules/conversation/conversation.service";
 import { tracker } from "@shared/utils/tracker";

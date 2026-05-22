@@ -1,34 +1,9 @@
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
-import { sendResponse, sendError, asyncHandler } from "@shared/utils/response";
-import { AuthenticatedRequest } from "@shared/middleware/auth";
+import { sendResponse, sendError, asyncHandler } from "@shared/core/response";
+import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 
 const authService = new AuthService();
-
-// ─── Bootstrap / Setup ───────────────────────────────────────────────────────
-
-export const bootstrapCheck = asyncHandler(async (_req: Request, res: Response) => {
-  const required = await AuthService.isBootstrapRequired();
-  sendResponse(res, 200, true, "Bootstrap status", { bootstrapRequired: required });
-});
-
-export const adminSignup = asyncHandler(async (req: Request, res: Response) => {
-  const { name, email, password, organizationName, companyName } = req.body;
-  const normalizedOrganizationName = organizationName || companyName;
-
-  const result = await authService.adminSignup({
-    name,
-    email,
-    password,
-    organizationName: normalizedOrganizationName,
-  });
-
-  if (!result.success) {
-    return sendError(res, result.statusCode || 400, result.message || "Signup failed");
-  }
-
-  sendResponse(res, 201, true, "InteraOne setup completed successfully", result.data);
-});
 
 export const initiateSignup = asyncHandler(async (req: Request, res: Response) => {
   const result = await authService.initiateSignup(req.body);
@@ -37,7 +12,6 @@ export const initiateSignup = asyncHandler(async (req: Request, res: Response) =
   }
   sendResponse(res, 200, true, result.message || "OTP sent", null);
 });
-
 
 
 export const completeSignup = asyncHandler(async (req: Request, res: Response) => {

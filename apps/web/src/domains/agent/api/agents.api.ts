@@ -8,7 +8,7 @@ class AgentsApi {
   }
 
   async inviteAgent(data: InviteAgentData): Promise<InviteResponse> {
-    return apiClient.post<InviteResponse>("/admin/invite-agent", data);
+    return apiClient.post<InviteResponse>("/admin/agents/invite", data);
   }
 
   async updateAgent(agentId: string, data: UpdateAgentData): Promise<AgentResponse> {

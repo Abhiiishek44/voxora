@@ -1,9 +1,31 @@
 import { Router } from "express";
 import * as WidgetController from "./widget.controller";
-import { validateRequest, authenticateWidget } from "@shared/middleware";
+import { validateRequest, authenticateWidget, authenticate, requireRole } from "@shared/security/middleware";
 import { widgetSchema } from "./widget.schema";
 
 const router = Router();
+
+// Admin widget management
+router.post(
+  "/manage",
+  authenticate,
+  requireRole("admin"),
+  validateRequest(widgetSchema.createWidget),
+  WidgetController.createWidget,
+);
+router.get(
+  "/manage",
+  authenticate,
+  requireRole("admin"),
+  WidgetController.getWidget,
+);
+router.put(
+  "/manage",
+  authenticate,
+  requireRole("admin"),
+  validateRequest(widgetSchema.updateWidget),
+  WidgetController.updateWidget,
+);
 
 // Widget auth
 router.post("/auth/token", WidgetController.generateWidgetToken);

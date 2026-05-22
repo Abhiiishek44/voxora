@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import logger from "@shared/utils/logger";
+import logger from "@shared/core/logger";
 import { logEeAuditEvent } from "./audit";
 import { getInteraOneMode, isEeEnabledByEnv } from "./env";
 import { EeModule } from "./types";

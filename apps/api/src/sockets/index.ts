@@ -1,10 +1,10 @@
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
-import { redisClient, redisPublisher, redisSubscriber } from "@shared/config/redis";
+import { redisClient, redisPublisher, redisSubscriber } from "@shared/infra/redis";
 import { User, Membership } from "@shared/models";
 import jwt from "jsonwebtoken";
-import logger from "@shared/utils/logger";
-import config from "@shared/config";
+import logger from "@shared/core/logger";
+import config from "@shared/infra/config";
 import { handleMessage } from "./handlers/handlerMessage";
 
 let socketManagerInstance: SocketManager | null = null;
@@ -86,7 +86,6 @@ export class SocketManager {
           userId: user._id.toString(),
           email: user.email,
           name: user.name,
-          avatar: user.avatar,
           orgId,
           orgRole: membership.role,
         };

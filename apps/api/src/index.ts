@@ -4,14 +4,14 @@ import { randomUUID } from "crypto";
 import cors from "cors";
 import helmet from "helmet";
 import { Router } from "express";
-import config from "@shared/config";
-import { connectDatabase } from "@shared/config/database";
-import { connectRedis } from "@shared/config/redis";
-import { initializeMinIO } from "@shared/config/minio";
-import { globalRateLimit, errorHandler, notFound } from "@shared/middleware";
+import config from "@shared/infra/config";
+import { connectDatabase } from "@shared/infra/database";
+import { connectRedis } from "@shared/infra/redis";
+import { initializeMinIO } from "@shared/infra/minio";
+import { globalRateLimit, errorHandler, notFound } from "@shared/security/middleware";
 import SocketManager from "@sockets/index";
 import { startAIResponseConsumer } from "@sockets/consumer";
-import logger from "@shared/utils/logger";
+import logger from "@shared/core/logger";
 import { seedEmailTemplates } from "@shared/seeds/emailTemplates.seed";
 import { authRouter } from "@modules/auth";
 import { adminRouter } from "@modules/admin";
@@ -227,12 +227,23 @@ class Application {
     process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
     process.on("unhandledRejection", (reason, promise) => {
-      logger.error("Unhandled promise rejection", { reason, promise });
+      const details = reason instanceof Error
+        ? {
+            errorName: reason.name,
+            message: reason.message,
+            stack: reason.stack,
+          }
+        : { message: String(reason) };
+      logger.error("Unhandled promise rejection", details);
       process.exit(1);
     });
 
     process.on("uncaughtException", (error) => {
-      logger.error("Uncaught exception", { error });
+      logger.error("Uncaught exception", {
+        errorName: error.name,
+        message: error.message,
+        stack: error.stack,
+      });
       process.exit(1);
     });
   }

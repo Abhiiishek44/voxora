@@ -1,12 +1,12 @@
 import { Router } from "express";
 import * as AgentController from "./agent.controller";
-import { authenticate, authorize, validateRequest } from "@shared/middleware";
+import { authenticate, requireRole, validateRequest } from "@shared/security/middleware";
 import { agentSchema } from "./agent.schema";
 
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize(["agent"]));
+router.use(requireRole("agent"));
 
 // ** AGENT PROFILE **
 router.get("/profile", AgentController.getProfile);

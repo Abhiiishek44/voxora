@@ -1,19 +1,9 @@
 import { Router } from "express";
 import * as AuthController from "./auth.controller";
-import { authenticate, validateRequest, authRateLimit } from "@shared/middleware";
+import { authenticate, validateRequest, authRateLimit } from "@shared/security/middleware";
 import { authSchema } from "./auth.schema";
 
 const router = Router();
-
-// ─── Bootstrap (public) ───────────────────────────────────────────────────────
-router.get("/bootstrap-status", AuthController.bootstrapCheck);
-
-router.post(
-  "/setup",
-  authRateLimit,
-  validateRequest(authSchema.adminSignup),
-  AuthController.adminSignup,
-);
 
 // ─── Multi-step Signup ────────────────────────────────────────────────────────
 router.post(
@@ -38,8 +28,18 @@ router.post(
 );
 
 // ─── OTP / Verification ───────────────────────────────────────────────────────
-router.post("/resend-otp", authRateLimit, AuthController.resendOTP);
-router.post("/verify-otp", authRateLimit, AuthController.verifyOTP);
+router.post(
+  "/resend-otp",
+  authRateLimit,
+  validateRequest(authSchema.resendOTP),
+  AuthController.resendOTP,
+);
+router.post(
+  "/verify-otp",
+  authRateLimit,
+  validateRequest(authSchema.verifyOTP),
+  AuthController.verifyOTP,
+);
 router.post(
   "/reset-password-otp",
   authRateLimit,

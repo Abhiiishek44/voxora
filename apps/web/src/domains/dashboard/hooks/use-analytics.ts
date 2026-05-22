@@ -6,7 +6,7 @@ export function useAnalyticsSummary() {
     queryKey: ["analytics", "summary"],
     queryFn: async () => {
       const response = await apiClient.get<any>("/analytics/summary");
-      return response.data.data;
+      return response.data;
     },
   });
 }
@@ -16,7 +16,7 @@ export function useAnalyticsTrends(days = 7) {
     queryKey: ["analytics", "trends", days],
     queryFn: async () => {
       const response = await apiClient.get<any>(`/analytics/trends?days=${days}`);
-      return response.data.data;
+      return response.data;
     },
   });
 }

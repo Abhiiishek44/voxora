@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
-import { asyncHandler, sendError, sendResponse } from "@shared/utils/response";
+import { asyncHandler, sendError, sendResponse } from "@shared/core/response";
 import { ConversationService } from "./conversation.service";
-import { AuthenticatedRequest } from "@shared/middleware/auth";
+import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 import { getSocketManager } from "@sockets/index";
-import logger from "@shared/utils/logger";
+import logger from "@shared/core/logger";
 import { tracker } from "@shared/utils/tracker";
 
 const conversationService = new ConversationService();

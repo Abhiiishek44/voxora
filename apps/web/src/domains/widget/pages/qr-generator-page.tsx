@@ -6,8 +6,6 @@ import { useWidget } from "@/domains/widget/hooks";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Loader } from "@/shared/ui/loader";
-import { INTERAONE_LOGO_BASE64 } from "@/shared/assets/interaone-logo-base64";
-
 const QR_CANVAS_ID = "InteraOne-qr-code-canvas";
 const PAGE_TITLE = "Chat Access QR";
 
@@ -159,7 +157,7 @@ export default function QRCodeGeneratorPage() {
                     bgColor="#ffffff"
                     fgColor="#111111"
                     imageSettings={{
-                      src: INTERAONE_LOGO_BASE64,
+                      src: "/assets/interaone-logo-base64.png",
                       height: 52,
                       width: 52,
                       excavate: true,

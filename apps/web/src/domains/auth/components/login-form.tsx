@@ -1,101 +1,64 @@
 import { useState } from "react";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/shared/ui/card";
-import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, AlertCircle, ArrowRight } from "lucide-react";
 import { useLogin } from "../hooks";
 import { Link } from "react-router";
-import { Alert } from "@/shared/ui/alert";
+import { Label } from "@/shared/ui/label";
 import { validateEmail, validateLoginForm } from "@/shared/lib/validation";
 import type { LoginPayload } from "../types/types";
-import Logo from "@/shared/components/logo";
 import { authApi } from "../api/auth.api";
 import { OTPInput } from "./otp-input.tsx";
 import { ResendOTPTimer } from "./resend-otp-timer.tsx";
-
-type VerificationMethod = "link" | "otp";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function LoginForm() {
   const { mutate: login, isPending, isError, error } = useLogin();
   const [showPassword, setShowPassword] = useState(false);
-  const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>("link");
   const [verificationSent, setVerificationSent] = useState(false);
   const [verificationOtp, setVerificationOtp] = useState("");
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
-  const [formData, setFormData] = useState<LoginPayload>({
-    email: "",
-    password: "",
-  });
-  const [fieldErrors, setFieldErrors] = useState<{
-    email?: string;
-    password?: string;
-  }>({});
-  const [touched, setTouched] = useState<{
-    email: boolean;
-    password: boolean;
-  }>({
+  const [formData, setFormData] = useState<LoginPayload>({ email: "", password: "" });
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [touched, setTouched] = useState<{ email: boolean; password: boolean }>({
     email: false,
     password: false,
   });
 
   const handleBlur = (field: "email" | "password") => {
     setTouched((prev) => ({ ...prev, [field]: true }));
-
     if (field === "email") {
       const emailError = validateEmail(formData.email);
       setFieldErrors((prev) => ({ ...prev, email: emailError || undefined }));
     } else if (field === "password") {
-      if (!formData.password) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          password: "Password is required",
-        }));
-      } else {
-        setFieldErrors((prev) => ({ ...prev, password: undefined }));
-      }
+      setFieldErrors((prev) => ({
+        ...prev,
+        password: !formData.password ? "Password is required" : undefined,
+      }));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Mark all fields as touched
     setTouched({ email: true, password: true });
-
-    // Validate form
     const validation = validateLoginForm(formData.email, formData.password);
-
     if (!validation.isValid) {
       const errors: { email?: string; password?: string } = {};
       validation.errors.forEach((err) => {
-        if (err.field === "email" || err.field === "password") {
-          errors[err.field] = err.message;
-        }
+        if (err.field === "email" || err.field === "password") errors[err.field] = err.message;
       });
       setFieldErrors(errors);
       return;
     }
-
     login(formData);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name as keyof LoginPayload]: value,
-    }));
-
-    // Clear field error when user starts typing
+    setFormData((prev) => ({ ...prev, [name as keyof LoginPayload]: value }));
     if (touched[name as keyof typeof touched]) {
-      setFieldErrors((prev) => ({ ...prev, [name as keyof typeof fieldErrors]: undefined }));
+      setFieldErrors((prev) => ({ ...prev, [name]: undefined }));
     }
   };
 
@@ -104,15 +67,11 @@ export function LoginForm() {
 
   const handleSendVerification = async () => {
     const emailError = validateEmail(formData.email);
-    if (emailError) {
-      setVerificationError(emailError);
-      return;
-    }
-
+    if (emailError) { setVerificationError(emailError); return; }
     setIsSendingVerification(true);
     setVerificationError(null);
     try {
-      await authApi.sendEmailVerification(formData.email, verificationMethod);
+      await authApi.sendEmailVerification(formData.email);
       setVerificationSent(true);
     } catch (err: any) {
       setVerificationError(err.message || "Failed to send verification.");
@@ -136,170 +95,160 @@ export function LoginForm() {
   };
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="space-y-1">
-        <div className="flex items-center justify-center mb-4">
-          <Logo size={64} animate={false} />
-        </div>
-        <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
-        <CardDescription className="text-center">
-          Sign in to your InteraOne account
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {isError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error?.message || "Login failed"}</span>
-            </Alert>
-          )}
+    <div className="w-full">
+      {/* Header */}
+      <div className="mb-8">
+       
+        <h1 className="type-display-lg-mobile md:type-display-lg text-foreground">
+          Sign in to your<br />
+          <span className="text-primary">account</span>
+        </h1>
+        <p className="mt-2 type-body-md text-muted-foreground">
+          Continue where you left off.
+        </p>
+      </div>
 
-          {requiresEmailVerification && (
-            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: "link" as const, label: "Verify using Email Link" },
-                  { value: "otp" as const, label: "Verify using OTP" },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => {
-                      setVerificationMethod(option.value);
-                      setVerificationSent(false);
-                      setVerificationOtp("");
-                      setVerificationError(null);
-                    }}
-                    className={`min-h-10 rounded-lg border px-3 text-xs font-semibold transition-colors ${
-                      verificationMethod === option.value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border bg-background text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              {verificationError && <p className="text-sm text-destructive">{verificationError}</p>}
-
-              {verificationSent && verificationMethod === "link" && (
-                <p className="text-sm text-muted-foreground">
-                  We sent a secure verification link. Open it, then sign in again.
-                </p>
-              )}
-
-              {verificationSent && verificationMethod === "otp" && (
-                <div className="space-y-4">
-                  <OTPInput
-                    value={verificationOtp}
-                    onChange={(value) => {
-                      setVerificationOtp(value);
-                      if (value.length === 6) handleVerifyLoginOtp(value);
-                    }}
-                    disabled={isSendingVerification}
-                  />
-                  <ResendOTPTimer onResend={handleSendVerification} disabled={isSendingVerification} />
-                </div>
-              )}
-
-              {!verificationSent && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleSendVerification}
-                  disabled={isSendingVerification}
-                >
-                  {isSendingVerification ? "Sending..." : verificationMethod === "otp" ? "Send OTP" : "Send Verification Link"}
-                </Button>
-              )}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="name@example.com"
-                value={formData.email}
-                onChange={handleInputChange}
-                onBlur={() => handleBlur("email")}
-                className={`pl-10 cursor-text ${fieldErrors.email && touched.email ? "border-destructive" : ""}`}
-                disabled={isPending}
-              />
-            </div>
-            {fieldErrors.email && touched.email && (
-              <p className="text-sm text-destructive">{fieldErrors.email}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={handleInputChange}
-                onBlur={() => handleBlur("password")}
-                className={`pl-10 pr-10 cursor-text ${fieldErrors.password && touched.password ? "border-destructive" : ""}`}
-                disabled={isPending}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-muted-foreground hover:text-foreground cursor-pointer"
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-            {fieldErrors.password && touched.password && (
-              <p className="text-sm text-destructive">{fieldErrors.password}</p>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between">
-            <Link
-              to="/auth/password-recovery"
-              className="text-sm text-primary hover:underline"
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Global error */}
+        <AnimatePresence>
+          {isError && !requiresEmailVerification && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-destructive/10 border border-destructive/20 p-3 rounded-sm flex items-center gap-3 text-destructive text-sm overflow-hidden"
             >
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <p className="font-medium">{error?.message || "Login failed"}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Email verification prompt */}
+        {requiresEmailVerification && (
+          <div className="rounded-sm border border-border/50 bg-muted/20 p-4 space-y-4">
+            <p className="text-sm font-semibold text-foreground">Verify your email first</p>
+            <p className="text-xs text-muted-foreground">
+              We send both a verification link and an OTP to your email.
+            </p>
+            {verificationError && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />{verificationError}
+              </p>
+            )}
+            {verificationSent && (
+              <p className="text-xs text-muted-foreground">
+                Verification email sent. Open the link in your inbox, or enter the OTP below.
+              </p>
+            )}
+            {verificationSent && (
+              <div className="space-y-3">
+                <OTPInput
+                  value={verificationOtp}
+                  onChange={(value) => { setVerificationOtp(value); if (value.length === 6) handleVerifyLoginOtp(value); }}
+                  disabled={isSendingVerification}
+                />
+                <ResendOTPTimer onResend={handleSendVerification} disabled={isSendingVerification} />
+              </div>
+            )}
+            {!verificationSent && (
+              <Button type="button" variant="outline" className="w-full h-11 rounded-sm cursor-pointer"
+                onClick={handleSendVerification} disabled={isSendingVerification}>
+                {isSendingVerification ? "Sending..." : "Send Verification Email"}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Email */}
+        <div className="space-y-1.5">
+          <Label htmlFor="email" className="type-label-caps text-muted-foreground">
+            Work Email
+          </Label>
+          <div className="relative">
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="you@company.com"
+              value={formData.email}
+              onChange={handleInputChange}
+              onBlur={() => handleBlur("email")}
+              className={`pl-10 h-12 rounded-sm border-border/60 bg-muted/30 focus:bg-background transition-colors cursor-text ${
+                fieldErrors.email && touched.email ? "border-destructive" : ""
+              }`}
+              disabled={isPending}
+            />
+          </div>
+          {fieldErrors.email && touched.email && (
+            <p className="text-xs text-destructive flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />{fieldErrors.email}
+            </p>
+          )}
+        </div>
+
+        {/* Password */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password" className="type-label-caps text-muted-foreground">
+              Password
+            </Label>
+            <Link to="/auth/password-recovery" className="text-xs text-primary hover:underline font-semibold">
               Forgot password?
             </Link>
           </div>
-
-          <Button
-            type="submit"
-            className="w-full cursor-pointer"
-            disabled={isPending}
-          >
-            {isPending ? "Signing in..." : "Sign in"}
-          </Button>
-
-          <div className="text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link to="/auth/signup" className="text-primary hover:underline">
-              Sign up
-            </Link>
+          <div className="relative">
+            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={handleInputChange}
+              onBlur={() => handleBlur("password")}
+              className={`pl-10 pr-11 h-12 rounded-sm border-border/60 bg-muted/30 focus:bg-background transition-colors cursor-text ${
+                fieldErrors.password && touched.password ? "border-destructive" : ""
+              }`}
+              disabled={isPending}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+          {fieldErrors.password && touched.password && (
+            <p className="text-xs text-destructive flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />{fieldErrors.password}
+            </p>
+          )}
+        </div>
+
+        {/* Submit */}
+        <Button
+          type="submit"
+          className="w-full h-12 rounded-sm type-button shadow-lg shadow-primary/20 cursor-pointer"
+          disabled={isPending}
+        >
+          {isPending ? "Signing in..." : (
+            <>
+              Sign in
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </>
+          )}
+        </Button>
+
+        <p className="text-center text-sm text-muted-foreground font-medium">
+          Don't have an account?{" "}
+          <Link to="/auth/signup" className="text-primary hover:underline font-bold">
+            Create account
+          </Link>
+        </p>
+      </form>
+    </div>
   );
 }

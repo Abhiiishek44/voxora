@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { asyncHandler, sendResponse } from "@shared/utils/response";
-import { AuthenticatedRequest } from "@shared/middleware/auth";
+import { asyncHandler, sendResponse } from "@shared/core/response";
+import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 import KnowledgeService from "./knowledge.service";
 import { tracker } from "@shared/utils/tracker";
 

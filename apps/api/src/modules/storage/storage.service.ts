@@ -1,14 +1,17 @@
 import { v4 as uuidv4 } from "uuid";
-import logger from "@shared/utils/logger";
+import logger from "@shared/core/logger";
+import { INTERAONE_BUCKET } from "@shared/infra/minio";
 import {
   getPublicUrl,
   getPresignedUploadUrl,
   getPresignedDownloadUrl,
+  downloadStream,
   statObject,
   removeObject,
   objectExists,
   listObjects,
 } from "@shared/utils/storage";
+import type { Readable } from "stream";
 
 export interface PresignedUrlResponse {
   uploadUrl: string;
@@ -25,6 +28,11 @@ export interface FileMetadata {
   fileKey?: string;
 }
 
+export interface ProxyFilePayload {
+  contentType: string;
+  stream: Readable;
+}
+
 class StorageService {
   // ── Public URL ─────────────────────────────────────────────────────────────
   // Use for permanently public assets (widget logos, avatars).
@@ -32,6 +40,10 @@ class StorageService {
 
   getPublicUrl(objectKey: string): string {
     return getPublicUrl(objectKey);
+  }
+
+  getBucketName(): string {
+    return INTERAONE_BUCKET;
   }
 
   // ── Presigned upload URLs ──────────────────────────────────────────────────
@@ -131,6 +143,21 @@ class StorageService {
     } catch (error) {
       logger.error("Error listing files:", error);
       throw new Error("Failed to list files");
+    }
+  }
+
+  async getProxyFilePayload(fileKey: string): Promise<ProxyFilePayload> {
+    try {
+      const stat = await statObject(fileKey);
+      const contentType =
+        (stat.metaData as any)?.["content-type"] ||
+        (stat.metaData as any)?.["Content-Type"] ||
+        "application/octet-stream";
+      const stream = await downloadStream(fileKey);
+      return { contentType, stream };
+    } catch (error) {
+      logger.error("Error preparing proxy file payload:", error);
+      throw new Error("File not found");
     }
   }
 }

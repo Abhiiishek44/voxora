@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { AnalyticsController } from "./analytics.controller";
-import { authenticate, resolveOrganization, requireRole } from "@shared/middleware";
+import { authenticate, resolveOrganization, requireRole } from "@shared/security/middleware";
 
 const analyticsRouter = Router();
 

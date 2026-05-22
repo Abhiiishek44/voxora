@@ -1,0 +1,240 @@
+import crypto from "crypto";
+import { Widget } from "@shared/models";
+import logger from "@shared/core/logger";
+import { buildDefaultWidgetConfig } from "@shared/core/widget-default-config";
+import config from "@shared/infra/config";
+import jwt from "jsonwebtoken";
+
+type ServiceError = Error & { statusCode?: number };
+
+function createServiceError(message: string, statusCode: number): ServiceError {
+  const err = new Error(message) as ServiceError;
+  err.statusCode = statusCode;
+  return err;
+}
+
+function withWidgetConfigDefaults(input: any): any {
+  const defaults = buildDefaultWidgetConfig();
+  const output = { ...input };
+  output.appearance = {
+    ...defaults.appearance,
+    ...(input.appearance || {}),
+  };
+  delete output.logoUrl;
+  delete output.appearance.logoUrl;
+  output.behavior = { ...defaults.behavior, ...(input.behavior || {}) };
+  output.ai = { ...defaults.ai, ...(input.ai || {}) };
+  output.conversation = {
+    collectUserInfo: {
+      ...defaults.conversation.collectUserInfo,
+      ...(input.conversation?.collectUserInfo || {}),
+    },
+  };
+  output.features = { ...defaults.features, ...(input.features || {}) };
+  if (Array.isArray(input.suggestions)) {
+    output.suggestions = input.suggestions.slice(0, 4).map((s: any) => ({
+      text: String(s.text || "").trim(),
+      showOutside: Boolean(s.showOutside),
+    })).filter((s: any) => s.text.length > 0);
+  } else if (!output.suggestions) {
+    output.suggestions = defaults.suggestions;
+  }
+  return output;
+}
+
+export class WidgetService {
+  async generateWidgetToken(InteraOnePublicKey: string, origin?: string, requestOrigin?: string) {
+    if (!InteraOnePublicKey) {
+      throw createServiceError("InteraOne public key is required", 400);
+    }
+
+    const widget = await Widget.findById(InteraOnePublicKey);
+    if (!widget) {
+      throw createServiceError("Widget not found", 404);
+    }
+
+    const widgetPayload = {
+      InteraOnePublicKey,
+      displayName: widget.displayName || "Unknown Widget",
+      organizationId: widget.organizationId,
+      origin: origin || requestOrigin || "unknown",
+      type: "widget_session",
+    };
+
+    const token = jwt.sign(widgetPayload, config.jwt.secret!, {
+      expiresIn: "24h",
+    });
+
+    return {
+      token,
+      expiresIn: "24h",
+    };
+  }
+
+  async getWidgetConfigByPublicKey(InteraOnePublicKey: string) {
+    if (!InteraOnePublicKey) {
+      throw createServiceError("InteraOne public key is required", 400);
+    }
+
+    const widget = await Widget.findById(InteraOnePublicKey)
+      .select("organizationId displayName backgroundColor appearance behavior ai conversation features suggestions")
+      .lean();
+
+    if (!widget) {
+      throw createServiceError("Widget not found", 404);
+    }
+
+    const defaults = buildDefaultWidgetConfig();
+    const { logoUrl: _ignoredLogoUrl, ...appearance } = (widget as any).appearance || {};
+
+    return {
+      organizationId: (widget as any).organizationId,
+      config: {
+        displayName: (widget as any).displayName,
+        appearance: {
+          ...defaults.appearance,
+          ...appearance,
+        },
+        backgroundColor: (widget as any).backgroundColor || defaults.backgroundColor,
+        behavior: {
+          ...defaults.behavior,
+          ...((widget as any).behavior || {}),
+        },
+        ai: {
+          ...defaults.ai,
+          ...((widget as any).ai || {}),
+        },
+        conversation: {
+          collectUserInfo: {
+            ...defaults.conversation.collectUserInfo,
+            ...((widget as any).conversation?.collectUserInfo || {}),
+          },
+        },
+        features: {
+          ...defaults.features,
+          ...((widget as any).features || {}),
+        },
+        suggestions: Array.isArray((widget as any).suggestions)
+          ? (widget as any).suggestions
+          : defaults.suggestions,
+      },
+    };
+  }
+
+  async getOrganizationIdByPublicKey(publicKey: string) {
+    if (!publicKey) {
+      throw createServiceError("Public key is required", 400);
+    }
+
+    const widget = await Widget.findById(publicKey)
+      .select("organizationId")
+      .lean();
+
+    if (!widget) {
+      throw createServiceError("Widget not found", 404);
+    }
+
+    return (widget as any).organizationId?.toString();
+  }
+
+  async createWidget(organizationId: string, widgetData: any) {
+    const normalizedWidgetData = withWidgetConfigDefaults(widgetData || {});
+    const existingWidget = await Widget.findOne({ organizationId });
+
+    if (existingWidget) {
+      return Widget.findOneAndUpdate(
+        { organizationId },
+        { ...normalizedWidgetData, organizationId },
+        { new: true, runValidators: true },
+      );
+    }
+
+    const widget = new Widget({
+      ...normalizedWidgetData,
+      organizationId,
+    });
+
+    await widget.save();
+
+    logger.info("Widget created successfully", {
+      widgetId: widget._id,
+      organizationId,
+      displayName: widget.displayName,
+    });
+
+    return widget;
+  }
+
+  async getWidget(organizationId: string) {
+    let widget = await Widget.findOne({ organizationId });
+    const defaultWidgetConfig = buildDefaultWidgetConfig();
+
+    if (!widget) {
+      widget = new Widget({
+        organizationId,
+        displayName: "InteraOne AI",
+        ...defaultWidgetConfig,
+        publicKey: crypto.randomBytes(16).toString("hex"),
+      });
+      await widget.save();
+      logger.info(`Auto-created default widget for org ${organizationId}`);
+      return widget;
+    }
+
+    const normalizedExisting = withWidgetConfigDefaults(widget.toObject());
+    const needsBackfill =
+      !widget.appearance ||
+      !widget.behavior ||
+      !widget.ai ||
+      !widget.conversation ||
+      !widget.features;
+
+    if (needsBackfill) {
+      await Widget.updateOne({ _id: widget._id }, normalizedExisting, {
+        runValidators: true,
+      });
+      const refreshedWidget = await Widget.findById(widget._id);
+      if (refreshedWidget) widget = refreshedWidget;
+    }
+
+    return widget;
+  }
+
+  async updateWidget(organizationId: string, updateData: any) {
+    const normalizedUpdateData = withWidgetConfigDefaults(updateData || {});
+    const allowedUpdates = {
+      displayName: normalizedUpdateData.displayName,
+      appearance: normalizedUpdateData.appearance,
+      behavior: normalizedUpdateData.behavior,
+      ai: normalizedUpdateData.ai,
+      conversation: normalizedUpdateData.conversation,
+      features: normalizedUpdateData.features,
+      suggestions: normalizedUpdateData.suggestions,
+    };
+
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(allowedUpdates).filter(([_, v]) => v !== undefined),
+    );
+
+    let widget = await Widget.findOneAndUpdate({ organizationId }, cleanUpdates, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!widget) {
+      widget = new Widget({
+        organizationId,
+        displayName: normalizedUpdateData.displayName || "InteraOne AI",
+        appearance: normalizedUpdateData.appearance,
+        behavior: normalizedUpdateData.behavior,
+        ai: normalizedUpdateData.ai,
+        conversation: normalizedUpdateData.conversation,
+        features: normalizedUpdateData.features,
+        publicKey: crypto.randomBytes(16).toString("hex"),
+      });
+      await widget.save();
+    }
+
+    return widget;
+  }
+}
