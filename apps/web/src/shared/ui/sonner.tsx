@@ -2,6 +2,7 @@
 
 import { Toaster as Sonner } from "sonner"
 import { useTheme } from "@/shared/theme/theme-context"
+import { CheckCircle2, AlertCircle, Info, TriangleAlert } from "lucide-react"
 
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
@@ -10,51 +11,57 @@ const Toaster = ({ ...props }: ToasterProps) => {
 
   return (
     <Sonner
-  theme={theme as ToasterProps["theme"]}
+      theme={theme as ToasterProps["theme"]}
       className="toaster group"
       closeButton
       position="top-center"
+      icons={{
+        success: <CheckCircle2 className="h-4 w-4" />,
+        error: <AlertCircle className="h-4 w-4" />,
+        info: <Info className="h-4 w-4" />,
+        warning: <TriangleAlert className="h-4 w-4" />,
+      }}
       toastOptions={{
         classNames: {
           toast: [
             "group toast",
-            "!bg-[#151515] !text-[#e5e7eb]",
-            "!border !border-[#262626]",
-            "!shadow-[0_8px_32px_rgba(0,0,0,0.6)]",
+            "!bg-[var(--card)] !text-[var(--foreground)]",
+            "!border !border-[var(--border)]",
+            "!shadow-[var(--shadow-lg)]",
             "!rounded-xl",
             "!px-4 !py-3",
             "!min-w-[320px] !max-w-[420px]",
             "!backdrop-blur-sm",
           ].join(" "),
-          title: "!text-[#e5e7eb] !font-semibold !text-sm !leading-snug",
-          description: "!text-[#9ca3af] !text-xs !mt-0.5 !leading-relaxed",
+          title: "!text-[var(--foreground)] !font-semibold !text-sm !leading-snug",
+          description: "!text-[var(--muted-foreground)] !text-xs !mt-0.5 !leading-relaxed",
           success: [
-            "!border-l-2 !border-l-[#10b981]",
-            "[&>[data-icon]]:!text-[#10b981]",
+            "!border-l-2 !border-l-[var(--success)]",
+            "[&>[data-icon]]:!text-[var(--success)]",
           ].join(" "),
           error: [
-            "!border-l-2 !border-l-[#ef4444]",
-            "[&>[data-icon]]:!text-[#ef4444]",
+            "!border-l-2 !border-l-[var(--destructive)]",
+            "[&>[data-icon]]:!text-[var(--destructive)]",
           ].join(" "),
           warning: [
-            "!border-l-2 !border-l-[#f59e0b]",
-            "[&>[data-icon]]:!text-[#f59e0b]",
+            "!border-l-2 !border-l-[var(--warning)]",
+            "[&>[data-icon]]:!text-[var(--warning)]",
           ].join(" "),
           info: [
-            "!border-l-2 !border-l-[#3b82f6]",
-            "[&>[data-icon]]:!text-[#3b82f6]",
+            "!border-l-2 !border-l-[var(--info)]",
+            "[&>[data-icon]]:!text-[var(--info)]",
           ].join(" "),
           closeButton: [
-            "!bg-[#262626] !border !border-[#3a3a3a]",
-            "!text-[#9ca3af] hover:!text-[#e5e7eb]",
-            "hover:!bg-[#303030]",
+            "!bg-[var(--muted)] !border !border-[var(--border)]",
+            "!text-[var(--muted-foreground)] hover:!text-[var(--foreground)]",
+            "hover:!bg-[var(--accent)]",
             "!rounded-md !w-5 !h-5",
             "!transition-colors !duration-150",
           ].join(" "),
           actionButton:
-            "!bg-[#10b981] !text-white hover:!bg-[#0d9e6e] !rounded-md !text-xs !font-medium !px-3 !py-1.5 !transition-colors",
+            "!bg-[var(--primary)] !text-[var(--primary-foreground)] hover:!opacity-90 !rounded-md !text-xs !font-medium !px-3 !py-1.5 !transition-colors",
           cancelButton:
-            "!bg-[#262626] !text-[#9ca3af] hover:!text-[#e5e7eb] !rounded-md !text-xs !font-medium !px-3 !py-1.5 !transition-colors",
+            "!bg-[var(--muted)] !text-[var(--muted-foreground)] hover:!text-[var(--foreground)] !rounded-md !text-xs !font-medium !px-3 !py-1.5 !transition-colors",
         },
       }}
       {...props}
