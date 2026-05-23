@@ -83,9 +83,15 @@ export async function startAIResponseConsumer(socketManager: SocketManager): Pro
   // ── AI response channel ──────────────────────────────────────────────────────
   await subscriber.subscribe(PUBSUB_CHANNEL, async (message) => {
     try {
-      const { conversationId, content, nonce } = JSON.parse(message) as {
+      const { conversationId, content, usage, nonce } = JSON.parse(message) as {
         conversationId: string;
         content: string;
+        usage?: {
+          promptTokens?: number;
+          completionTokens?: number;
+          totalTokens?: number;
+          estimatedCostUsd?: number;
+        };
         nonce?: string;
       };
 
@@ -149,6 +155,29 @@ export async function startAIResponseConsumer(socketManager: SocketManager): Pro
         { messageLength: content.length },
         { conversationId, channel: "widget" },
       );
+
+      const hasTokenUsage = Boolean(
+        usage && (
+          (usage.totalTokens && usage.totalTokens > 0)
+          || (usage.promptTokens && usage.promptTokens > 0)
+          || (usage.completionTokens && usage.completionTokens > 0)
+        ),
+      );
+
+      if (hasTokenUsage) {
+        tracker.trackEvent(
+          organizationId,
+          "ai_token_usage",
+          "ai",
+          {
+            promptTokens: usage?.promptTokens || 0,
+            completionTokens: usage?.completionTokens || 0,
+            totalTokens: usage?.totalTokens || 0,
+            estimatedCostUsd: usage?.estimatedCostUsd || 0,
+          },
+          { conversationId, channel: "widget" },
+        );
+      }
 
       socketManager.emitToConversation(conversationId, "new_message", {
         conversationId,

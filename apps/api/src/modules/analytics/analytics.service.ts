@@ -1,176 +1,317 @@
-import { AnalyticsEvent } from "@shared/models";
+import { AnalyticsEvent, Conversation } from "@shared/models";
 import dayjs from "dayjs";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 
 dayjs.extend(isSameOrBefore);
 
 export class AnalyticsService {
-  /**
-   * Get a summary of key metrics for an organization
-   */
-  static async getSummary(organizationId: string) {
-    const thirtyDaysAgo = dayjs().subtract(30, "days").toDate();
+  static async getOwnerSummary(organizationId: string, days = 30) {
+    const startDate = dayjs().subtract(days - 1, "days").startOf("day").toDate();
 
-    const [stats, messageByCategory, firstResponseAvg] = await Promise.all([
-      AnalyticsEvent.aggregate([
-        {
-          $addFields: {
-            eventTime: { $ifNull: ["$occurredAt", "$createdAt"] },
+    const [conversationAgg, usersServedAgg, resolutionAgg, questionAgg, widgetLoadAgg, sourceAgg, tokenAgg] =
+      await Promise.all([
+        Conversation.aggregate([
+          {
+            $match: {
+              organizationId,
+              createdAt: { $gte: startDate },
+            },
           },
-        },
-        {
-          $match: {
-            organizationId,
-            eventTime: { $gte: thirtyDaysAgo },
+          {
+            $group: {
+              _id: null,
+              totalConversations: { $sum: 1 },
+              resolvedConversations: {
+                $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] },
+              },
+              escalatedConversations: {
+                $sum: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $ne: ["$assignedTo", null] },
+                        { $ifNull: ["$metadata.escalatedAt", false] },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+            },
           },
-        },
-        {
-          $group: {
-            _id: "$type",
-            count: { $sum: 1 },
+        ]),
+        Conversation.aggregate([
+          {
+            $match: {
+              organizationId,
+              createdAt: { $gte: startDate },
+              "visitor.sessionId": { $exists: true, $ne: "" },
+            },
           },
-        },
-      ]),
-      AnalyticsEvent.aggregate([
-        {
-          $addFields: {
-            eventTime: { $ifNull: ["$occurredAt", "$createdAt"] },
+          {
+            $group: {
+              _id: "$visitor.sessionId",
+            },
           },
-        },
-        {
-          $match: {
-            organizationId,
-            type: "message_sent",
-            eventTime: { $gte: thirtyDaysAgo },
+          { $count: "totalUsersServed" },
+        ]),
+        Conversation.aggregate([
+          {
+            $match: {
+              organizationId,
+              createdAt: { $gte: startDate },
+              status: { $in: ["resolved", "closed"] },
+              closedAt: { $ne: null },
+            },
           },
-        },
-        {
-          $group: {
-            _id: "$category",
-            count: { $sum: 1 },
+          {
+            $project: {
+              resolutionMs: { $subtract: ["$closedAt", "$createdAt"] },
+            },
           },
-        },
-      ]),
-      AnalyticsEvent.aggregate([
-        {
-          $addFields: {
-            eventTime: { $ifNull: ["$occurredAt", "$createdAt"] },
+          {
+            $group: {
+              _id: null,
+              avgResolutionTimeMs: { $avg: "$resolutionMs" },
+            },
           },
-        },
-        {
-          $match: {
-            organizationId,
-            type: "agent_first_response",
-            eventTime: { $gte: thirtyDaysAgo },
+        ]),
+        Conversation.aggregate([
+          {
+            $match: {
+              organizationId,
+              createdAt: { $gte: startDate },
+              "metadata.customer.initialMessage": { $exists: true, $type: "string", $ne: "" },
+            },
           },
-        },
-        {
-          $group: {
-            _id: null,
-            avgResponseTimeMs: { $avg: "$metadata.responseTimeMs" },
+          {
+            $project: {
+              question: {
+                $toLower: {
+                  $trim: { input: "$metadata.customer.initialMessage" },
+                },
+              },
+            },
           },
-        },
-      ]),
-    ]);
+          {
+            $group: {
+              _id: "$question",
+              count: { $sum: 1 },
+            },
+          },
+          { $sort: { count: -1 } },
+          { $limit: 5 },
+        ]),
+        AnalyticsEvent.aggregate([
+          {
+            $addFields: {
+              eventTime: { $ifNull: ["$occurredAt", "$createdAt"] },
+            },
+          },
+          {
+            $match: {
+              organizationId,
+              type: "widget_load",
+              eventTime: { $gte: startDate },
+            },
+          },
+          {
+            $count: "widgetLoads",
+          },
+        ]),
+        AnalyticsEvent.aggregate([
+          {
+            $addFields: {
+              eventTime: { $ifNull: ["$occurredAt", "$createdAt"] },
+            },
+          },
+          {
+            $match: {
+              organizationId,
+              eventTime: { $gte: startDate },
+              $or: [
+                { channel: "widget" },
+                { type: "qr_scan" },
+              ],
+            },
+          },
+          {
+            $project: {
+              source: {
+                $cond: [{ $eq: ["$type", "qr_scan"] }, "qr", "widget"],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: "$source",
+              count: { $sum: 1 },
+            },
+          },
+        ]),
+        AnalyticsEvent.aggregate([
+          {
+            $addFields: {
+              eventTime: { $ifNull: ["$occurredAt", "$createdAt"] },
+            },
+          },
+          {
+            $match: {
+              organizationId,
+              eventTime: { $gte: startDate },
+              type: { $in: ["ai_response", "ai_token_usage"] },
+            },
+          },
+          {
+            $project: {
+              promptTokens: { $ifNull: ["$metadata.promptTokens", 0] },
+              completionTokens: { $ifNull: ["$metadata.completionTokens", 0] },
+              totalTokens: {
+                $ifNull: [
+                  "$metadata.totalTokens",
+                  {
+                    $add: [
+                      { $ifNull: ["$metadata.promptTokens", 0] },
+                      { $ifNull: ["$metadata.completionTokens", 0] },
+                    ],
+                  },
+                ],
+              },
+              estimatedCostUsd: { $ifNull: ["$metadata.estimatedCostUsd", 0] },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              promptTokens: { $sum: "$promptTokens" },
+              completionTokens: { $sum: "$completionTokens" },
+              totalTokens: { $sum: "$totalTokens" },
+              estimatedCostUsd: { $sum: "$estimatedCostUsd" },
+            },
+          },
+        ]),
+      ]);
 
-    const summary: Record<string, number> = {
-      message_sent: 0,
-      fallback_triggered: 0,
-      widget_load: 0,
-      conversation_started: 0,
-      conversation_closed: 0,
-      conversation_resolved: 0,
-      agent_assigned: 0,
-      ai_response: 0,
-      knowledge_view: 0,
-      qr_scan: 0,
+    const conv = conversationAgg[0] || {
+      totalConversations: 0,
+      resolvedConversations: 0,
+      escalatedConversations: 0,
     };
 
-    stats.forEach((s) => {
-      if (s._id in summary) {
-        summary[s._id] = s.count;
-      }
-    });
-
-    const messageCounts: Record<string, number> = { ai: 0, agent: 0 };
-    messageByCategory.forEach((row) => {
-      if (row._id in messageCounts) {
-        messageCounts[row._id] = row.count;
-      }
-    });
-
-    const aiResponses = summary.ai_response || 0;
-    const fallbacks = summary.fallback_triggered || 0;
-    const deflectionRate = aiResponses > 0
-      ? Math.round(((aiResponses - fallbacks) / aiResponses) * 100)
-      : 100;
-
-    const widgetLoads = summary.widget_load || 0;
-    const conversationStarts = summary.conversation_started || 0;
-    const widgetConversionRate = widgetLoads > 0
-      ? Math.round((conversationStarts / widgetLoads) * 100)
+    const humanEscalationRate = conv.totalConversations > 0
+      ? Math.round((conv.escalatedConversations / conv.totalConversations) * 100)
       : 0;
 
-    const avgResponseTimeMs = firstResponseAvg[0]?.avgResponseTimeMs
-      ? Math.round(firstResponseAvg[0].avgResponseTimeMs)
-      : null;
+    const source = { widget: 0, qr: 0 };
+    sourceAgg.forEach((row) => {
+      if (row._id in source) {
+        source[row._id as "widget" | "qr"] = row.count;
+      }
+    });
+
+    const ai = tokenAgg[0] || {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      estimatedCostUsd: 0,
+    };
 
     return {
-      totalConversations: conversationStarts,
-      fallbacks,
-      aiDeflectionRate: deflectionRate,
-      widgetLoads,
-      widgetConversionRate,
-      conversationsResolved: summary.conversation_resolved,
-      conversationsClosed: summary.conversation_closed,
-      agentAssignments: summary.agent_assigned,
-      aiMessages: messageCounts.ai,
-      agentMessages: messageCounts.agent,
-      knowledgeViews: summary.knowledge_view,
-      qrScans: summary.qr_scan,
-      avgFirstResponseTimeMs: avgResponseTimeMs,
+      totalConversations: conv.totalConversations,
+      resolvedConversations: conv.resolvedConversations,
+      totalUsersServed: usersServedAgg[0]?.totalUsersServed || 0,
+      humanEscalationRate,
+      avgResolutionTimeMs: resolutionAgg[0]?.avgResolutionTimeMs
+        ? Math.round(resolutionAgg[0].avgResolutionTimeMs)
+        : null,
+      widgetLoads: widgetLoadAgg[0]?.widgetLoads || 0,
+      mostAskedQuestions: questionAgg.map((q) => ({ question: q._id, count: q.count })),
+      source,
+      aiCost: {
+        promptTokens: ai.promptTokens,
+        completionTokens: ai.completionTokens,
+        totalTokens: ai.totalTokens,
+        estimatedCostUsd: Number(ai.estimatedCostUsd || 0),
+      },
     };
   }
 
-  /**
-   * Get daily volume trends for charts
-   */
-  static async getTrends(organizationId: string, days = 7) {
-    const startDate = dayjs().subtract(days, "days").startOf("day").toDate();
+  static async getOwnerTrends(organizationId: string, days = 7) {
+    const startDate = dayjs().subtract(days - 1, "days").startOf("day").toDate();
     const endDate = dayjs().endOf("day");
 
-    const trends = await AnalyticsEvent.aggregate([
-      {
-        $addFields: {
-          eventTime: { $ifNull: ["$occurredAt", "$createdAt"] },
-        },
-      },
-      {
-        $match: {
-          organizationId,
-          eventTime: { $gte: startDate },
-          type: {
-            $in: [
-              "message_sent",
-              "conversation_started",
-              "conversation_closed",
-              "conversation_resolved",
-              "agent_assigned",
-            ],
+    const [eventRows, aiCostRows] = await Promise.all([
+      AnalyticsEvent.aggregate([
+        {
+          $addFields: {
+            eventTime: { $ifNull: ["$occurredAt", "$createdAt"] },
           },
         },
-      },
-      {
-        $group: {
-          _id: {
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$eventTime" } },
-            type: "$type",
-            category: "$category",
+        {
+          $match: {
+            organizationId,
+            eventTime: { $gte: startDate },
+            type: {
+              $in: [
+                "message_sent",
+                "conversation_started",
+                "conversation_resolved",
+                "conversation_closed",
+              ],
+            },
           },
-          count: { $sum: 1 },
         },
-      },
-      { $sort: { "_id.date": 1 } },
+        {
+          $group: {
+            _id: {
+              date: { $dateToString: { format: "%Y-%m-%d", date: "$eventTime" } },
+              type: "$type",
+              category: "$category",
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { "_id.date": 1 } },
+      ]),
+      AnalyticsEvent.aggregate([
+        {
+          $addFields: {
+            eventTime: { $ifNull: ["$occurredAt", "$createdAt"] },
+          },
+        },
+        {
+          $match: {
+            organizationId,
+            eventTime: { $gte: startDate },
+            type: { $in: ["ai_response", "ai_token_usage"] },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              date: { $dateToString: { format: "%Y-%m-%d", date: "$eventTime" } },
+            },
+            promptTokens: { $sum: { $ifNull: ["$metadata.promptTokens", 0] } },
+            completionTokens: { $sum: { $ifNull: ["$metadata.completionTokens", 0] } },
+            totalTokens: {
+              $sum: {
+                $ifNull: [
+                  "$metadata.totalTokens",
+                  {
+                    $add: [
+                      { $ifNull: ["$metadata.promptTokens", 0] },
+                      { $ifNull: ["$metadata.completionTokens", 0] },
+                    ],
+                  },
+                ],
+              },
+            },
+            estimatedCostUsd: { $sum: { $ifNull: ["$metadata.estimatedCostUsd", 0] } },
+          },
+        },
+        { $sort: { "_id.date": 1 } },
+      ]),
     ]);
 
     const dates: string[] = [];
@@ -180,46 +321,60 @@ export class AnalyticsService {
       cursor = cursor.add(1, "day");
     }
 
-    const messages = dates.map((date) => ({ date, ai: 0, agent: 0 }));
-    const conversations = dates.map((date) => ({ date, started: 0, resolved: 0, closed: 0 }));
-    const assignments = dates.map((date) => ({ date, assigned: 0 }));
+    const conversationStatus = dates.map((date) => ({ date, started: 0, resolved: 0, opened: 0 }));
+    const messageVolume = dates.map((date) => ({ date, ai: 0, agent: 0 }));
+    const aiCost = dates.map((date) => ({ date, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCostUsd: 0 }));
 
-    const messageIndex = new Map(messages.map((row) => [row.date, row]));
-    const conversationIndex = new Map(conversations.map((row) => [row.date, row]));
-    const assignmentIndex = new Map(assignments.map((row) => [row.date, row]));
+    const statusByDate = new Map(conversationStatus.map((row) => [row.date, row]));
+    const messageByDate = new Map(messageVolume.map((row) => [row.date, row]));
+    const costByDate = new Map(aiCost.map((row) => [row.date, row]));
 
-    trends.forEach((row) => {
+    eventRows.forEach((row) => {
       const date = row._id.date as string;
       const type = row._id.type as string;
       const category = row._id.category as string;
       const count = row.count as number;
 
       if (type === "message_sent") {
-        const target = messageIndex.get(date);
+        const target = messageByDate.get(date);
         if (target && (category === "ai" || category === "agent")) {
           target[category] += count;
         }
       }
 
       if (type === "conversation_started" || type === "conversation_resolved" || type === "conversation_closed") {
-        const target = conversationIndex.get(date);
+        const target = statusByDate.get(date);
         if (target) {
           if (type === "conversation_started") target.started += count;
           if (type === "conversation_resolved") target.resolved += count;
-          if (type === "conversation_closed") target.closed += count;
+          if (type === "conversation_closed") target.resolved += count;
         }
-      }
-
-      if (type === "agent_assigned") {
-        const target = assignmentIndex.get(date);
-        if (target) target.assigned += count;
       }
     });
 
+    aiCostRows.forEach((row) => {
+      const date = row._id.date as string;
+      const target = costByDate.get(date);
+      if (!target) return;
+
+      target.promptTokens += row.promptTokens || 0;
+      target.completionTokens += row.completionTokens || 0;
+      target.totalTokens += row.totalTokens || 0;
+      target.estimatedCostUsd += row.estimatedCostUsd || 0;
+    });
+
+    let runningOpen = 0;
+    conversationStatus.forEach((row) => {
+      runningOpen += row.started;
+      runningOpen -= row.resolved;
+      row.opened = Math.max(runningOpen, 0);
+    });
+
     return {
-      messages,
-      conversations,
-      assignments,
+      conversationStatus,
+      messageVolume,
+      aiCost,
     };
   }
+
 }

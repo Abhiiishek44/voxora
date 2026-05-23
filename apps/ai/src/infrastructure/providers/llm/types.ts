@@ -15,9 +15,20 @@ export interface LLMOptions {
   onStream?: (chunk: string, isThought?: boolean) => void;
 }
 
+export interface LLMTokenUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
+export interface LLMGenerateResult {
+  text: string;
+  usage?: LLMTokenUsage;
+}
+
 export interface LLMProvider {
    
   readonly name: string;
-  generate(messages: LLMMessage[], options?: LLMOptions): Promise<string>;
+  generate(messages: LLMMessage[], options?: LLMOptions): Promise<LLMGenerateResult>;
 }
 

@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { LLMProvider, LLMMessage, LLMOptions } from "./types";
+import { LLMProvider, LLMMessage, LLMOptions, LLMGenerateResult, LLMTokenUsage } from "./types";
 
 export class GeminiProvider implements LLMProvider {
   readonly name = "gemini";
@@ -14,7 +14,7 @@ export class GeminiProvider implements LLMProvider {
     this.defaultModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   }
 
-  async generate(messages: LLMMessage[], options: LLMOptions = {}): Promise<string> {
+    async generate(messages: LLMMessage[], options: LLMOptions = {}): Promise<LLMGenerateResult> {
         const { model = this.defaultModel, tools = [], toolContext, onStream } = options;
 
     let systemInstruction = messages.find((m) => m.role === "system")?.content;
@@ -87,6 +87,7 @@ export class GeminiProvider implements LLMProvider {
     
     const MAX_TOOL_LOOPS = 5;
     let fullTextResponse = "";
+    let usage: LLMTokenUsage | undefined;
 
     for (let loop = 0; loop < MAX_TOOL_LOOPS; loop++) {
         fullTextResponse = ""; 
@@ -102,6 +103,13 @@ export class GeminiProvider implements LLMProvider {
                 if (chunk.functionCalls && chunk.functionCalls.length > 0) {
                     functionCalls.push(...chunk.functionCalls);
                 }
+                        if ((chunk as any).usageMetadata) {
+                            usage = {
+                                promptTokens: (chunk as any).usageMetadata.promptTokenCount,
+                                completionTokens: (chunk as any).usageMetadata.candidatesTokenCount,
+                                totalTokens: (chunk as any).usageMetadata.totalTokenCount,
+                            };
+                        }
             }
         } else {
             const response = await this.ai.models.generateContent({ model, contents, config });
@@ -111,10 +119,20 @@ export class GeminiProvider implements LLMProvider {
             if (response.functionCalls && response.functionCalls.length > 0) {
                 functionCalls = response.functionCalls;
             }
+                    if ((response as any).usageMetadata) {
+                        usage = {
+                            promptTokens: (response as any).usageMetadata.promptTokenCount,
+                            completionTokens: (response as any).usageMetadata.candidatesTokenCount,
+                            totalTokens: (response as any).usageMetadata.totalTokenCount,
+                        };
+                    }
         }
 
         if (functionCalls.length === 0) {
-            return fullTextResponse || "Sorry, I could not generate a response.";
+                        return {
+                                text: fullTextResponse || "Sorry, I could not generate a response.",
+                                usage,
+                        };
         }
 
         
@@ -173,6 +191,9 @@ export class GeminiProvider implements LLMProvider {
         contents.push(...functionResponses);
     }
     
-    return fullTextResponse || "Tool execution limit reached.";
+        return {
+            text: fullTextResponse || "Tool execution limit reached.",
+            usage,
+        };
   }
 }

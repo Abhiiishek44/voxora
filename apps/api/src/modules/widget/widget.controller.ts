@@ -65,6 +65,9 @@ export const getWidgetConfig = asyncHandler(
       try {
         const organizationId = data.organizationId;
         if (organizationId) {
+          const userAgent = req.get("user-agent") || "";
+          const referrer = req.get("referer") || req.get("referrer") || "";
+
           tracker.trackEvent(
             organizationId.toString(),
             "widget_load",
@@ -72,6 +75,18 @@ export const getWidgetConfig = asyncHandler(
             {},
             { widgetId: InteraOnePublicKey, channel: "widget" },
           );
+
+          if (widgetService.shouldTrackMobileQrPageOpen(userAgent, referrer)) {
+            tracker.trackEvent(
+              organizationId.toString(),
+              "qr_scan",
+              "system",
+              {
+                trigger: "mobile_qr_page_open",
+              },
+              { widgetId: InteraOnePublicKey, channel: "qr" },
+            );
+          }
         }
       } catch (trackError: any) {
         logger.warn(`Widget tracking failed: ${trackError?.message || trackError}`);
