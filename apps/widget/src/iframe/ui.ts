@@ -29,46 +29,53 @@ export const elements = {
 
 let _typingDotsEl: HTMLElement | null = null;
 let _agentTypingEl: HTMLElement | null = null;
+let _typingDotsInterval: number | null = null;
 let _openSkeletonTimer: number | null = null;
 
 function getThinkingStatusText(context?: string) {
   const cleanContext = (context || '').replace(/\s+/g, ' ').trim();
-  if (!cleanContext) return 'Taking a look';
-  return `Taking a look at "${cleanContext}"`;
+  if (!cleanContext) return 'Thinking...';
+  
+  const prefixes = [
+    'Figuring out',
+    'Looking into',
+    'Thinking about',
+    'Analyzing'
+  ];
+  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+  const maxLen = 30;
+  const truncated = cleanContext.length > maxLen 
+    ? cleanContext.substring(0, maxLen) + '...' 
+    : cleanContext;
+    
+  return `${prefix} "${truncated}"`;
 }
 
-function getTypingOrbitMarkup(statusText = 'Taking a look') {
+function getTypingOrbitMarkup() {
   return `
-    <div class="typing-loader" aria-label="Assistant is processing">
-      <div class="interaone-anim">
-        <svg class="interaone-sparkle" viewBox="0 0 24 24" fill="none">
-          <defs>
-            <linearGradient id="typingSparkleGradient" x1="4" y1="4" x2="20" y2="20" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#60a5fa"></stop>
-              <stop offset="0.48" stop-color="#a78bfa"></stop>
-              <stop offset="1" stop-color="#f472b6"></stop>
-            </linearGradient>
-          </defs>
-          <path d="M12 2.8l1.78 5.42L19.2 10l-5.42 1.78L12 17.2l-1.78-5.42L4.8 10l5.42-1.78L12 2.8Z" fill="url(#typingSparkleGradient)"></path>
-          <path d="M18.4 14.3l.74 2.05 2.06.75-2.06.74-.74 2.06-.75-2.06-2.05-.74 2.05-.75.75-2.05Z" fill="url(#typingSparkleGradient)" opacity="0.8"></path>
-        </svg>
-      </div>
-      <span class="typing-loader-label">${escapeHtml(statusText)}</span>
+    <div style="display: flex; flex-direction: column; gap: 8px; width: 140px; padding: 4px;">
+      <div class="ui-skeleton-bubble"></div>
+      <div class="ui-skeleton-bubble is-medium"></div>
+      <div class="ui-skeleton-bubble is-short"></div>
     </div>
   `;
 }
 
-export function showTypingDots(context?: string) {
+export function showTypingDots() {
   if (_typingDotsEl) return; 
   const wrapper = document.createElement('div');
   wrapper.className = 'message agent';
-  wrapper.innerHTML = `<div class="message-bubble typing-bubble">${getTypingOrbitMarkup(getThinkingStatusText(context))}</div>`;
+  wrapper.innerHTML = `<div class="message-bubble typing-bubble">${getTypingOrbitMarkup()}</div>`;
   _typingDotsEl = wrapper;
   elements.messagesContainer?.appendChild(wrapper);
   scrollToBottom();
 }
 
 export function removeTypingDots() {
+  if (_typingDotsInterval) {
+    window.clearInterval(_typingDotsInterval);
+    _typingDotsInterval = null;
+  }
   if (_typingDotsEl) {
     _typingDotsEl.remove();
     _typingDotsEl = null;
@@ -79,7 +86,7 @@ export function showTyping() {
   if (_agentTypingEl) return;
   const wrapper = document.createElement('div');
   wrapper.className = 'message agent';
-  wrapper.innerHTML = `<div class="message-bubble typing-bubble">${getTypingOrbitMarkup('Support is replying')}</div>`;
+  wrapper.innerHTML = `<div class="message-bubble typing-bubble">${getTypingOrbitMarkup()}</div>`;
   _agentTypingEl = wrapper;
   elements.messagesContainer?.appendChild(wrapper);
   scrollToBottom();

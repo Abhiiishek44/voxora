@@ -6,6 +6,17 @@ export function escapeHtml(str: string) {
     .replace(/"/g, '&quot;');
 }
 
+export function stripMarkdown(text: string) {
+  if (!text) return "";
+  return text
+    .replace(/```[\s\S]*?```/g, '') // remove code blocks
+    .replace(/`([^`]+)`/g, '$1') // remove inline code
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // remove link URLs
+    .replace(/[#*_-]/g, '') // remove formatting characters
+    .replace(/\n+/g, ' ') // replace newlines with space
+    .trim();
+}
+
 export function parseMarkdown(text: string) {
   let s = escapeHtml(text || "");
 
@@ -31,11 +42,11 @@ export function parseMarkdown(text: string) {
   s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
   // Bold + italic
-  s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
-  s = s.replace(/_(.+?)_/g, '<em>$1</em>');
+  s = s.replace(/\*\*\*([\s\S]+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  s = s.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*([^\n*]+?)\*/g, '<em>$1</em>');
+  s = s.replace(/__([\s\S]+?)__/g, '<strong>$1</strong>');
+  s = s.replace(/_([^\n_]+?)_/g, '<em>$1</em>');
 
   // Horizontal rule
   s = s.replace(/^[-*]{3,}$/gm, '<hr>');

@@ -2,6 +2,7 @@ import { state, API_BASE_URL, PROTO_VERSION } from './config';
 import { elements, addMessage, adjustTextareaHeight, hideWelcomeScreen, showTypingDots, removeTypingDots, formatHistoryDateTime, scrollToBottom } from './ui';
 import { makeAuthenticatedRequest, fetchMessagesFromBackend } from './api';
 import { initializeSocket } from './socket';
+import { stripMarkdown } from './utils/markdown';
 
 function clearWidgetStateChrome() {
   document.getElementById('conversationStateBanner')?.remove();
@@ -168,16 +169,7 @@ export function setupEventListeners() {
     elements.newChatBtn.addEventListener('click', () => startNewConversation());
   }
 
-  if (elements.suggestionsContainer && elements.messageInput) {
-    elements.suggestionsContainer.addEventListener('click', (e) => {
-      const btn = (e.target as Element).closest('.suggestion-btn') as HTMLButtonElement | null;
-      if (btn && btn.dataset.text) {
-        elements.messageInput.value = btn.dataset.text;
-        elements.messageInput.focus();
-        if (elements.sendBtn) elements.sendBtn.disabled = false;
-      }
-    });
-  }
+  // (suggestion click listener removed: handled by main.ts directly on the buttons to prevent bubble conflicts)
 
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape' && window.parent) {
@@ -373,10 +365,11 @@ function renderHistoryList(convs: any[]) {
   elements.historyList.innerHTML = '';
 
   convs.forEach((c: any, idx: number) => {
-    const msg: string = (c.lastMessage?.content || c.lastMessage || 'No messages').trim();
+    const msgRaw: string = (c.lastMessage?.content || c.lastMessage || 'No messages').trim();
+    const msg = stripMarkdown(msgRaw) || msgRaw;
     const preview = msg.length > 100 ? msg.substring(0, 100) + '…' : msg;
     // Use first meaningful text as "title"
-    const titleRaw = c.subject || msg;
+    const titleRaw = c.subject || msgRaw;
     const title = titleRaw.length > 48 ? titleRaw.substring(0, 48) + '…' : titleRaw;
     const status = (c.status || 'open').toLowerCase();
     const displayStatus = status === 'resolved' ? 'open' : status;
@@ -424,7 +417,10 @@ function renderHistoryList(convs: any[]) {
 
       fetchMessagesFromBackend(state.chatId as string).then((msgs: any[]) => {
         elements.messagesContainer!.innerHTML = '';
-        msgs.forEach((m: any) => addMessage(m.content, m.sender === 'visitor' ? 'user' : 'agent', 'Support', 'text'));
+        msgs.forEach((m: any) => {
+          const isUser = m.sender === 'visitor' || m.sender === 'user' || m.role === 'user';
+          addMessage(m.content, isUser ? 'user' : 'agent', 'Support', 'text');
+        });
         applyConversationVisualStateFromHistory(c);
         scrollToBottom();
       });

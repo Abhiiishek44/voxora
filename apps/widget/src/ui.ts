@@ -19,12 +19,12 @@ export class WidgetUI {
   private onToggle?: (isOpen: boolean) => void;
   private customSize: { width: number; height: number } | null = null;
   private centered = false;
-  private hostPaddingRight: string | null = null;
-  private hostTransition: string | null = null;
+  private hostWidth: string | null = null;
+  private hostHeight: string | null = null;
   private hostOverflowY: string | null = null;
-  private hostScrollbarGutter: string | null = null;
-  private documentOverflowY: string | null = null;
-  private documentScrollbarGutter: string | null = null;
+  private hostOverflowX: string | null = null;
+  private hostTransition: string | null = null;
+  private documentOverflow: string | null = null;
 
   private get isFullscreen(): boolean {
     return this.config.fullscreen === true;
@@ -114,57 +114,59 @@ export class WidgetUI {
 
     if (!this.state.isOpen) return;
 
-    const scrollbarWidth = this.getScrollbarWidth();
-    const effectiveWidth = this.isMobileSheet() ? 0 : width + scrollbarWidth;
+    const effectiveWidth = this.isMobileSheet() ? 0 : width;
 
-    if (this.hostPaddingRight === null) {
-      this.hostPaddingRight = body.style.paddingRight || '';
+    if (this.hostWidth === null) {
+      this.hostWidth = body.style.width || '';
+      this.hostHeight = body.style.height || '';
       this.hostTransition = body.style.transition || '';
       this.hostOverflowY = body.style.overflowY || '';
-      this.hostScrollbarGutter = body.style.scrollbarGutter || '';
-      this.documentOverflowY = document.documentElement.style.overflowY || '';
-      this.documentScrollbarGutter = document.documentElement.style.scrollbarGutter || '';
+      this.hostOverflowX = body.style.overflowX || '';
+      this.documentOverflow = document.documentElement.style.overflow || '';
     }
 
-    body.style.overflowY = 'scroll';
-    body.style.scrollbarGutter = 'stable';
-    document.documentElement.style.overflowY = 'scroll';
-    document.documentElement.style.scrollbarGutter = 'stable';
+    if (effectiveWidth > 0) {
+      document.documentElement.style.overflow = 'hidden';
+      body.style.width = `calc(100vw - ${effectiveWidth}px)`;
+      body.style.height = '100dvh';
+      body.style.overflowY = 'auto';
+      body.style.overflowX = 'hidden';
 
-    const baseTransition = this.hostTransition || '';
-    const paddingTransition = 'padding-right 0.24s ease-in-out';
-    body.style.transition = baseTransition
-      ? `${baseTransition}, ${paddingTransition}`
-      : paddingTransition;
-    body.style.boxSizing = 'border-box';
-    body.style.paddingRight = `${effectiveWidth}px`;
+      const baseTransition = this.hostTransition || '';
+      const widthTransition = 'width 0.24s ease-in-out';
+      body.style.transition = baseTransition
+        ? `${baseTransition}, ${widthTransition}`
+        : widthTransition;
+      body.style.boxSizing = 'border-box';
+    } else {
+      // Mobile sheet mode
+      document.documentElement.style.overflow = 'hidden';
+      body.style.overflowY = 'hidden';
+    }
 
-    this.syncDockToScrollbar();
-    const updatedScrollbarWidth = this.getScrollbarWidth();
-    if (!this.isMobileSheet() && updatedScrollbarWidth !== scrollbarWidth) {
-      body.style.paddingRight = `${width + updatedScrollbarWidth}px`;
-      this.syncDockToScrollbar();
+    if (this.dockContainer) {
+      this.dockContainer.style.right = '0px';
     }
   }
 
   private restoreHostDockSpacing(): void {
     const body = document.body;
-    if (!body || this.hostPaddingRight === null) return;
-    body.style.paddingRight = this.hostPaddingRight;
+    if (!body || this.hostWidth === null) return;
+    
+    body.style.width = this.hostWidth;
+    body.style.height = this.hostHeight || '';
+    
     if (this.hostTransition !== null) {
       body.style.transition = this.hostTransition;
     }
     if (this.hostOverflowY !== null) {
       body.style.overflowY = this.hostOverflowY;
     }
-    if (this.hostScrollbarGutter !== null) {
-      body.style.scrollbarGutter = this.hostScrollbarGutter;
+    if (this.hostOverflowX !== null) {
+      body.style.overflowX = this.hostOverflowX;
     }
-    if (this.documentOverflowY !== null) {
-      document.documentElement.style.overflowY = this.documentOverflowY;
-    }
-    if (this.documentScrollbarGutter !== null) {
-      document.documentElement.style.scrollbarGutter = this.documentScrollbarGutter;
+    if (this.documentOverflow !== null) {
+      document.documentElement.style.overflow = this.documentOverflow;
     }
   }
 
@@ -176,8 +178,7 @@ export class WidgetUI {
 
   private syncDockToScrollbar(): void {
     if (!this.dockContainer || this.isFullscreen || this.isMobileSheet()) return;
-    const scrollbarWidth = this.getScrollbarWidth();
-    this.dockContainer.style.right = `${scrollbarWidth}px`;
+    this.dockContainer.style.right = '0px';
   }
 
   /**
@@ -317,7 +318,7 @@ export class WidgetUI {
       chip.innerHTML = `
         <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:999px;background:rgba(16,185,129,0.14);color:${accentColor};flex-shrink:0;transition:all 0.2s ease;">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 3l1.9 4.8L19 9.7l-4 3.1 1.4 5L12 15.2 7.6 17.8 9 12.8 5 9.7l5.1-1.9L12 3z"></path>
+            <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </span>
         <span style="white-space:normal;word-break:break-word;">${s.text}</span>
@@ -411,9 +412,9 @@ export class WidgetUI {
         bottom: '0',
         left: '0',
         width: '100vw',
-        height: '100vh',
+        height: '100dvh',
         maxWidth: '100vw',
-        maxHeight: '100vh',
+        maxHeight: '100dvh',
         border: 'none',
         borderRadius: '0',
         boxShadow: 'none',
@@ -431,14 +432,13 @@ export class WidgetUI {
     } else {
       this.dockContainer = document.createElement('div');
       this.dockContainer.id = 'InteraOne-widget-dock';
-      const scrollbarWidth = this.getScrollbarWidth();
       Object.assign(this.dockContainer.style, {
         position: 'fixed',
         top: '0',
-        right: `${scrollbarWidth}px`,
+        right: '0px',
         bottom: '0',
         width: `${this.getPanelWidth()}px`,
-        height: '100vh',
+        height: '100dvh',
         zIndex: '2147483645',
         transform: 'translateX(100%)',
         opacity: '0',
@@ -596,9 +596,9 @@ export class WidgetUI {
         bottom: '0',
         left: '0',
         width: '100vw',
-        height: '100vh',
+        height: '100dvh',
         maxWidth: '100vw',
-        maxHeight: '100vh',
+        maxHeight: '100dvh',
         borderRadius: '0',
         boxShadow: 'none',
       });
@@ -610,7 +610,7 @@ export class WidgetUI {
       if (this.dockContainer) {
         Object.assign(this.dockContainer.style, {
           width: '100vw',
-          height: '100vh',
+          height: '100dvh',
           right: '0',
           left: '0',
           top: '0',
@@ -626,11 +626,10 @@ export class WidgetUI {
 
     const panelWidth = this.getPanelWidth();
     if (this.dockContainer) {
-      const scrollbarWidth = this.getScrollbarWidth();
       Object.assign(this.dockContainer.style, {
         width: `${panelWidth}px`,
-        height: '100vh',
-        right: `${scrollbarWidth}px`,
+        height: '100dvh',
+        right: '0px',
         left: 'auto',
         top: '0',
         bottom: '0',

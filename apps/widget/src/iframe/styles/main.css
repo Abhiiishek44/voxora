@@ -56,10 +56,10 @@
 }
 
 .light-theme .message.user .message-bubble {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  color: #111827;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background: var(--vx-accent, #845C6C);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .light-theme .chat-input-box {
@@ -362,6 +362,23 @@ body {
       rgba(255, 255, 255, 0.08));
   background-size: 200% 100%;
   animation: skeletonShimmer 1.2s ease-in-out infinite;
+}
+
+.light-theme .ui-skeleton-avatar,
+.light-theme .ui-skeleton-lines span,
+.light-theme .ui-skeleton-bubble,
+.light-theme .ui-skeleton-input-line,
+.light-theme .ui-skeleton-chip,
+.light-theme .ui-skeleton-send {
+  background: linear-gradient(90deg,
+      rgba(0, 0, 0, 0.04),
+      rgba(0, 0, 0, 0.08),
+      rgba(0, 0, 0, 0.04));
+  background-size: 200% 100%;
+}
+
+.light-theme .ui-skeleton-input {
+  border-color: rgba(0, 0, 0, 0.08);
 }
 
 @keyframes skeletonShimmer {
@@ -1064,19 +1081,14 @@ body {
 }
 
 .message.user .message-bubble {
-  background:
-    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--vx-accent, #845C6C) 12%, transparent), transparent 36%),
-    linear-gradient(135deg, #27272a 0%, #17171c 52%, #07070a 100%);
-  border: 1px solid color-mix(in srgb, var(--vx-text, #f4f4f5) 8%, transparent);
-  border-radius: 999px;
-  box-shadow:
-    0 8px 22px rgba(0, 0, 0, 0.18),
-    0 0 18px color-mix(in srgb, var(--vx-accent, #845C6C) 8%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  color: color-mix(in srgb, var(--vx-text, #f4f4f5) 94%, #ffffff 6%);
+  background: var(--vx-accent, #845C6C);
+  border: none;
+  border-radius: 12px 12px 2px 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  color: #ffffff;
   margin-left: auto;
   max-width: min(82%, 520px);
-  padding: 11px 17px;
+  padding: 8px 14px;
 }
 
 /* Input Area */
@@ -1296,6 +1308,30 @@ body {
 
 .message-bubble .md a:hover {
   text-decoration: underline;
+}
+
+/* Light Theme overrides for Markdown */
+.light-theme .message-bubble .md strong {
+  color: #111827;
+}
+
+.light-theme .message-bubble .md a {
+  color: #4f46e5;
+}
+
+.light-theme .message-bubble .md code {
+  background: rgba(15, 23, 42, 0.06);
+  color: #7e22ce;
+}
+
+.light-theme .message-bubble .md pre {
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.light-theme .message-bubble .md pre code {
+  color: #334155;
 }
 
 /* Thought Box Styling (Extracted correctly) */
@@ -1675,8 +1711,7 @@ details.thought-box summary::-webkit-details-marker {
 }
 
 .typing-loader-label {
-  color: color-mix(in srgb, var(--vx-text, #f4f4f5) 62%, transparent);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0;
   line-height: 1;
@@ -1684,6 +1719,13 @@ details.thought-box summary::-webkit-details-marker {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: color-mix(in srgb, var(--vx-text, #f4f4f5) 75%, transparent);
+  animation: textPulseOpacity 1.5s ease-in-out infinite;
+}
+
+@keyframes textPulseOpacity {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .interaone-anim {
@@ -1697,68 +1739,45 @@ details.thought-box summary::-webkit-details-marker {
   isolation: isolate;
 }
 
-.interaone-anim::before,
-.interaone-anim::after {
+.interaone-logo-center {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.interaone-logo-center svg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.interaone-spinner {
+  width: 100%;
+  height: 100%;
   position: absolute;
-  content: "";
-  border-radius: 999px;
-  pointer-events: none;
+  top: 0;
+  left: 0;
+  animation: spinnerRotate 2s linear infinite;
+  z-index: 0;
 }
 
-.interaone-anim::before {
-  inset: 1px;
-  background:
-    conic-gradient(from 0deg,
-      color-mix(in srgb, var(--vx-accent, #845C6C) 92%, #ffffff 8%) 0deg,
-      #a78bfa 92deg,
-      #60a5fa 178deg,
-      color-mix(in srgb, var(--vx-text, #fafafa) 18%, transparent) 242deg,
-      transparent 318deg,
-      color-mix(in srgb, var(--vx-accent, #845C6C) 92%, #ffffff 8%) 360deg);
-  animation: typingProgressSpin 1.25s linear infinite;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--vx-accent, #845C6C) 16%, transparent);
-  mask: radial-gradient(circle, transparent 67%, #000 69%);
-  -webkit-mask: radial-gradient(circle, transparent 67%, #000 69%);
-  z-index: -1;
+.spinner-path {
+  stroke-dasharray: 90, 150;
+  stroke-dashoffset: 0;
+  animation: spinnerDash 1.5s ease-in-out infinite;
 }
 
-.interaone-anim::after {
-  inset: 4px;
-  background:
-    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.16), transparent 36%),
-    color-mix(in srgb, var(--vx-input-bg, rgba(255, 255, 255, 0.04)) 68%, rgba(255, 255, 255, 0.08));
-  border: 1px solid color-mix(in srgb, var(--vx-text, #fafafa) 8%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  z-index: -1;
+@keyframes spinnerRotate {
+  100% { transform: rotate(360deg); }
 }
 
-.interaone-sparkle {
-  width: 19px;
-  height: 19px;
-  animation: interaOnePulse 1.75s ease-in-out infinite;
-  filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.34));
-  transform-origin: 50% 50%;
-}
-
-@keyframes typingProgressSpin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes interaOnePulse {
-
-  0%,
-  100% {
-    transform: scale(0.9) rotate(-8deg);
-    opacity: 0.78;
-  }
-
-  50% {
-    transform: scale(1.08) rotate(8deg);
-    opacity: 1;
-    filter: drop-shadow(0 0 14px rgba(167, 139, 250, 0.58));
-  }
+@keyframes spinnerDash {
+  0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
 }
 
 .typing-dots {
