@@ -1,20 +1,21 @@
-INTERAONE ENTERPRISE EDITION (EE) LICENSE
+InteraOne Enterprise License
 
-Copyright (c) 2026 InteraOne
+Copyright (c) 2026 Om Pharate
 
-This software and associated documentation files (the "Software"), specifically those located within the `ee/` directory of the InteraOne repository, are governed by this Commercial License.
+The software contained in this directory ("Enterprise Software")
+is proprietary and confidential.
 
-1. PERMITTED USE
-You may view and audit the source code contained within the `ee/` directory.
+You may not use, copy, modify, distribute, sublicense,
+or sell the Enterprise Software without explicit written
+permission from the copyright holder.
 
-2. RESTRICTIONS
-Unless you have been granted a valid, paid Commercial License Key from InteraOne, you may NOT:
-a) Use the Software for any commercial purpose.
-b) Modify, distribute, sublicense, or sell the Software.
-c) Circumvent any license key checks or technological measures that restrict access to the Software.
-d) Use the Software to provide a service that competes with InteraOne.
+You may use and modify the Enterprise Software internally
+for development and evaluation purposes only.
 
-3. NO WARRANTY
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+This license applies only to files located inside the /ee
+directory or otherwise explicitly marked as Enterprise Edition (EE).
 
-For inquiries about purchasing a Commercial License Key, please contact sales@interaone.com.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+AND NONINFRINGEMENT.

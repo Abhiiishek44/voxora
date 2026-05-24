@@ -1,17 +1,25 @@
-InteraOne Custom License v1.0
-Copyright (c) 2025 Om Pharate
+MIT License
 
-Permission is hereby granted, free of charge, to any person or organization
-obtaining a copy of this software (the "Software"), to use, copy, modify, and
-distribute it for commercial or personal purposes, subject to the following conditions:
+Copyright (c) 2026 Om Pharate
 
-1. Any public-facing instance of the Software, whether hosted for personal or
-   commercial use, must display the notice "Powered by InteraOne" prominently and
-   legibly within the popup widget UI.
-2. The notice must remain intact and unmodified in any version or derivative of
-   the Software.
-3. Removal, alteration, or obscuring of the notice without written permission from
-   the copyright holder is strictly prohibited.
-4. This license does not grant trademark rights to the name "InteraOne".
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-Violation of these terms will result in termination of this license.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+This license does not apply to files or components located inside the `/ee`
+directory or otherwise explicitly marked as Enterprise Edition (EE). Such
+components are licensed separately under the InteraOne Enterprise License.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
