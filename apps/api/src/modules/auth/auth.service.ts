@@ -60,47 +60,40 @@ export class AuthService {
     };
 
     const normalizedEmail = data.email.toLowerCase();
-    const session = await mongoose.startSession();
     let signupContext: SignupContext | undefined;
 
     try {
-      const txResult = await session.withTransaction(async (): Promise<SignupContext> => {
-        const user = await User.findOne({ email: normalizedEmail }).session(session);
-        if (!user) {
-          throw new Error("USER_NOT_FOUND");
-        }
+      const user = await User.findOne({ email: normalizedEmail });
+      if (!user) {
+        throw new Error("USER_NOT_FOUND");
+      }
 
-        if (!user.emailVerified) {
-          throw new Error("EMAIL_NOT_VERIFIED");
-        }
+      if (!user.emailVerified) {
+        throw new Error("EMAIL_NOT_VERIFIED");
+      }
 
-        if (user.isActive) {
-          throw new Error("EMAIL_ALREADY_REGISTERED");
-        }
+      if (user.isActive) {
+        throw new Error("EMAIL_ALREADY_REGISTERED");
+      }
 
-        // Activate only inside transaction to avoid partial account state.
-        user.password = data.password;
-        user.isActive = true;
-        await user.save({ session });
+      user.password = data.password;
+      user.isActive = true;
+      await user.save();
 
-        const { organization } = await OrganizationService.createOrganization(
-          user._id.toString(),
-          { name: data.organizationName },
-          { session },
-        );
+      const { organization } = await OrganizationService.createOrganization(
+        user._id.toString(),
+        { name: data.organizationName }
+      );
 
-        return {
-          userId: user._id.toString(),
-          userName: user.name,
-          userEmail: user.email,
-          organizationId: organization._id.toString(),
-          organizationName: organization.name,
-          organizationSlug: organization.slug,
-          organizationPlan: organization.plan,
-        };
-      });
-
-      signupContext = txResult ?? undefined;
+      signupContext = {
+        userId: user._id.toString(),
+        userName: user.name,
+        userEmail: user.email,
+        organizationId: organization._id.toString(),
+        organizationName: organization.name,
+        organizationSlug: organization.slug,
+        organizationPlan: organization.plan,
+      };
     } catch (error) {
       const code = error instanceof Error ? error.message : "UNKNOWN";
       if (code === "USER_NOT_FOUND") {
@@ -113,8 +106,6 @@ export class AuthService {
         return { success: false, message: "Email already registered", statusCode: 400 };
       }
       throw error;
-    } finally {
-      await session.endSession();
     }
 
     if (!signupContext) {
