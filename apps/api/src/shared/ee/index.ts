@@ -21,6 +21,9 @@ export type { EeFeature, PlanTier, InteraOneMode, PlanDefinition, PlanLimitKey }
 // Policy constants
 export { EE_FEATURE_POLICY, PLAN_WEIGHT, PLAN_DEFINITIONS, OSS_CORE_CAPABILITIES } from "./policy";
 
+// Audit
+export { logEeAuditEvent } from "./audit";
+
 // Environment / mode
 export { getInteraOneMode, isEeEnabledByEnv } from "./env";
 
