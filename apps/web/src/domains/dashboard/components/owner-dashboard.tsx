@@ -318,7 +318,7 @@ export function OwnerDashboard() {
           <h3 className="text-lg font-semibold mb-4">Most Asked Questions</h3>
           <div className="space-y-3">
             {summary?.mostAskedQuestions?.length ? (
-              summary.mostAskedQuestions.map((q, index) => (
+              summary.mostAskedQuestions.map((q: { question: string; count: number }, index: number) => (
                 <div key={`${q.question}-${index}`} className="flex items-start justify-between gap-4 border-b border-border pb-2 last:border-b-0">
                   <p className="text-sm text-foreground line-clamp-2">{q.question}</p>
                   <p className="text-xs text-muted-foreground">{q.count}</p>

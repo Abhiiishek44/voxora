@@ -46,8 +46,7 @@ export function useAnalyticsSummary() {
   return useQuery({
     queryKey: ["analytics", "summary"],
     queryFn: async () => {
-      const response = await apiClient.get<DashboardSummary>("/analytics/owner/summary");
-      return response.data;
+      return apiClient.get<DashboardSummary>("/analytics/owner/summary");
     },
   });
 }
@@ -56,8 +55,7 @@ export function useAnalyticsTrends(days = 7) {
   return useQuery({
     queryKey: ["analytics", "trends", days],
     queryFn: async () => {
-      const response = await apiClient.get<DashboardTrends>(`/analytics/owner/trends?days=${days}`);
-      return response.data;
+      return apiClient.get<DashboardTrends>(`/analytics/owner/trends?days=${days}`);
     },
   });
 }
