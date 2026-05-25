@@ -1,19 +1,21 @@
 import { AnalyticsEvent, Conversation } from "@shared/models";
 import dayjs from "dayjs";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
+import mongoose from "mongoose";
 
 dayjs.extend(isSameOrBefore);
 
 export class AnalyticsService {
   static async getOwnerSummary(organizationId: string, days = 30) {
     const startDate = dayjs().subtract(days - 1, "days").startOf("day").toDate();
+    const orgObjectId = new mongoose.Types.ObjectId(organizationId);
 
     const [conversationAgg, usersServedAgg, resolutionAgg, questionAgg, widgetLoadAgg, sourceAgg, tokenAgg] =
       await Promise.all([
         Conversation.aggregate([
           {
             $match: {
-              organizationId,
+              organizationId: orgObjectId,
               createdAt: { $gte: startDate },
             },
           },
@@ -44,7 +46,7 @@ export class AnalyticsService {
         Conversation.aggregate([
           {
             $match: {
-              organizationId,
+              organizationId: orgObjectId,
               createdAt: { $gte: startDate },
               "visitor.sessionId": { $exists: true, $ne: "" },
             },
@@ -59,7 +61,7 @@ export class AnalyticsService {
         Conversation.aggregate([
           {
             $match: {
-              organizationId,
+              organizationId: orgObjectId,
               createdAt: { $gte: startDate },
               status: { $in: ["resolved", "closed"] },
               closedAt: { $ne: null },
@@ -80,7 +82,7 @@ export class AnalyticsService {
         Conversation.aggregate([
           {
             $match: {
-              organizationId,
+              organizationId: orgObjectId,
               createdAt: { $gte: startDate },
               "metadata.customer.initialMessage": { $exists: true, $type: "string", $ne: "" },
             },
@@ -111,7 +113,7 @@ export class AnalyticsService {
           },
           {
             $match: {
-              organizationId,
+              organizationId: { $in: [organizationId, orgObjectId] },
               type: "widget_load",
               eventTime: { $gte: startDate },
             },
@@ -128,7 +130,7 @@ export class AnalyticsService {
           },
           {
             $match: {
-              organizationId,
+              organizationId: { $in: [organizationId, orgObjectId] },
               eventTime: { $gte: startDate },
               $or: [
                 { channel: "widget" },
@@ -158,7 +160,7 @@ export class AnalyticsService {
           },
           {
             $match: {
-              organizationId,
+              organizationId: { $in: [organizationId, orgObjectId] },
               eventTime: { $gte: startDate },
               type: { $in: ["ai_response", "ai_token_usage"] },
             },
@@ -240,6 +242,7 @@ export class AnalyticsService {
   static async getOwnerTrends(organizationId: string, days = 7) {
     const startDate = dayjs().subtract(days - 1, "days").startOf("day").toDate();
     const endDate = dayjs().endOf("day");
+    const orgObjectId = new mongoose.Types.ObjectId(organizationId);
 
     const [eventRows, aiCostRows] = await Promise.all([
       AnalyticsEvent.aggregate([
@@ -250,7 +253,7 @@ export class AnalyticsService {
         },
         {
           $match: {
-            organizationId,
+            organizationId: { $in: [organizationId, orgObjectId] },
             eventTime: { $gte: startDate },
             type: {
               $in: [
@@ -282,7 +285,7 @@ export class AnalyticsService {
         },
         {
           $match: {
-            organizationId,
+            organizationId: { $in: [organizationId, orgObjectId] },
             eventTime: { $gte: startDate },
             type: { $in: ["ai_response", "ai_token_usage"] },
           },
