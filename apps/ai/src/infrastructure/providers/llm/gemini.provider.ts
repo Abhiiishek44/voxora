@@ -84,7 +84,12 @@ export class GeminiProvider implements LLMProvider {
         }];
     }
 
-    
+    const safeGetText = (res: any): string => {
+        const parts = res.candidates?.[0]?.content?.parts;
+        if (!parts) return "";
+        return parts.map((p: any) => p.text || "").join("");
+    };
+
     const MAX_TOOL_LOOPS = 5;
     let fullTextResponse = "";
     let usage: LLMTokenUsage | undefined;
@@ -96,9 +101,10 @@ export class GeminiProvider implements LLMProvider {
         if (onStream) {
             const stream = await this.ai.models.generateContentStream({ model, contents, config });
             for await (const chunk of stream) {
-                if (chunk.text) {
-                    fullTextResponse += chunk.text;
-                    onStream(chunk.text, false);
+                const text = safeGetText(chunk);
+                if (text) {
+                    fullTextResponse += text;
+                    onStream(text, false);
                 }
                 if (chunk.functionCalls && chunk.functionCalls.length > 0) {
                     functionCalls.push(...chunk.functionCalls);
@@ -113,8 +119,9 @@ export class GeminiProvider implements LLMProvider {
             }
         } else {
             const response = await this.ai.models.generateContent({ model, contents, config });
-            if (response.text) {
-                fullTextResponse = response.text;
+            const text = safeGetText(response);
+            if (text) {
+                fullTextResponse = text;
             }
             if (response.functionCalls && response.functionCalls.length > 0) {
                 functionCalls = response.functionCalls;

@@ -8,7 +8,13 @@ export type EmailTemplateType =
   | "email_verification_otp"
   | "password_reset_otp"
   | "notification"
-  | "alert";
+  | "alert"
+  | "agent_verification_otp"
+  | "conversation_summary"
+  | "ticket_created"
+  | "ticket_updated"
+  | "ticket_resolved"
+  | "ticket_closed";
 
 export interface IEmailTemplate extends Document {
   templateKey: string;
@@ -32,14 +38,20 @@ const EmailTemplateSchema = new Schema<IEmailTemplate>(
     type: {
       type: String,
       enum: [
-        "invite",
-        "password_reset",
-        "welcome",
-        "email_verification_link",
-        "email_verification_otp",
-        "password_reset_otp",
-        "notification",
-        "alert",
+         "invite",
+         "password_reset",
+         "welcome",
+         "email_verification_link",
+         "email_verification_otp",
+         "password_reset_otp",
+         "notification",
+         "alert",
+         "agent_verification_otp",
+         "conversation_summary",
+         "ticket_created",
+         "ticket_updated",
+         "ticket_resolved",
+         "ticket_closed",
       ],
       required: true,
       unique: true,

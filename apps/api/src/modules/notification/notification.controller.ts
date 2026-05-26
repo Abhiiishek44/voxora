@@ -2,7 +2,9 @@ import { Request, Response } from "express";
 import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 import NotificationService from "./notification.service";
 import logger from "@shared/core/logger";
-import { sendSuccess, sendError } from "@shared/core/response";
+import { sendSuccess, sendError, sendResponse } from "@shared/core/response";
+import { Notification } from "@shared/models";
+import { getSocketManager } from "../../sockets/index";
 
 class NotificationController {
   async getNotifications(req: Request, res: Response) {
@@ -50,6 +52,40 @@ class NotificationController {
       return sendSuccess(res, null, "All notifications marked as read");
     } catch (error: any) {
       logger.error("Error marking all notifications as read:", error);
+      return sendError(res, 500, error.message);
+    }
+  }
+
+  // ─── AI-Internal: Create Notification ──────────────────────────────────────
+
+  async aiCreate(req: Request, res: Response) {
+    try {
+      const { organizationId, type, title, description, userId } = req.body;
+
+      if (!organizationId || !type || !title || !description) {
+        return sendError(res, 400, "organizationId, type, title, and description are required");
+      }
+
+      const notif = await Notification.create({
+        organizationId,
+        ...(userId ? { userId } : {}),
+        type,
+        title,
+        description,
+      });
+
+      getSocketManager()?.emitToOrg(organizationId, "notification", {
+        id: notif._id,
+        type: notif.type,
+        title: notif.title,
+        description: notif.description,
+        timestamp: notif.createdAt,
+        isRead: notif.isRead,
+      });
+
+      return sendResponse(res, 201, true, "Notification created", { id: notif._id });
+    } catch (error: any) {
+      logger.error("Error creating AI notification:", error);
       return sendError(res, 500, error.message);
     }
   }

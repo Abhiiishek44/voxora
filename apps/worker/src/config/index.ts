@@ -50,7 +50,7 @@ const config = {
     },
     resendApiKey: process.env.RESEND_API_KEY || undefined,
     from: {
-      name: process.env.EMAIL_FROM_NAME || "InteraOne",
+      name: "InteraOne",
       email:
         process.env.EMAIL_FROM_EMAIL
         || process.env.EMAIL_FROM_ADDRESS
@@ -61,4 +61,3 @@ const config = {
 
 export default config;
 export type { EmailProvider };
-

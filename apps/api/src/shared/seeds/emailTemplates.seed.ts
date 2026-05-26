@@ -364,6 +364,128 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSeed[] = [
     }),
     textTemplate: "InteraOne alert: {{title}}\n\n{{message}}\n\nRecommended action: {{recommendation}}\n\n{{actionLabel}}: {{actionUrl}}",
   },
+  {
+    templateKey: "global.agent_verification_otp",
+    type: "agent_verification_otp",
+    subjectTemplate: "{{otp}} is your identity verification code",
+    htmlTemplate: renderLayout({
+      preheader: "Use this code to verify your identity with the agent.",
+      eyebrow: "Identity Verification",
+      title: "Verify your identity",
+      intro: "An agent has requested an identity verification to continue assisting you.",
+      children: `
+        <p class="text">Hello,</p>
+        <p class="text muted">Please provide this verification code to the agent or enter it on the verification screen to securely confirm your identity.</p>
+        ${otpBlock()}
+        <p class="meta">This code expires in <strong>10 minutes</strong>. If you did not request this, please ignore this email.</p>
+      `,
+      footerNote: "InteraOne will never ask you to share this code outside the active support verification step.",
+    }),
+    textTemplate: "Hello, use {{otp}} to verify your identity with InteraOne support. This code expires in 10 minutes.",
+  },
+  {
+    templateKey: "global.conversation_summary",
+    type: "conversation_summary",
+    subjectTemplate: "Summary of your conversation with {{companyName}}",
+    htmlTemplate: renderLayout({
+      preheader: "Here is a copy of your recent chat conversation summary.",
+      eyebrow: "Chat Summary",
+      title: "Conversation Summary",
+      intro: "Thank you for chatting with us. Here is the summary of your session.",
+      children: `
+        <p class="text">Hi {{name}},</p>
+        <p class="text muted">Here is the summary/transcript details of your recent conversation:</p>
+        <div class="panel" style="background:#fcfafb;">
+          <p class="text" style="white-space:pre-wrap;font-style:italic;">{{summary}}</p>
+        </div>
+        <p class="meta">Have any further questions? Simply reply to this email or start a new chat on our website.</p>
+      `,
+    }),
+    textTemplate: "Hi {{name}},\n\nHere is the summary of your recent conversation:\n\n{{summary}}",
+  },
+  {
+    templateKey: "global.ticket_created",
+    type: "ticket_created",
+    subjectTemplate: "Support ticket {{ticketNumber}} received by InteraOne",
+    htmlTemplate: renderLayout({
+      preheader: "Your support ticket has been created.",
+      eyebrow: "Support ticket",
+      title: "We received your request",
+      intro: "Your support ticket is now being tracked by InteraOne.",
+      children: `
+        <p class="text">Hi {{name}},</p>
+        <p class="text muted">Your request has been created successfully. Keep this ticket number for future reference.</p>
+        <div class="panel">
+          <p class="section-title">{{ticketNumber}} - {{title}}</p>
+          <p class="meta">Status: <strong>{{status}}</strong> &nbsp; Priority: <strong>{{priority}}</strong></p>
+        </div>
+      `,
+      footerNote: "We will email you again when there is an update to this ticket.",
+    }),
+    textTemplate: "Hi {{name}},\n\nYour support ticket has been created.\n\nTicket: {{ticketNumber}}\nSubject: {{title}}\nStatus: {{status}}\nPriority: {{priority}}",
+  },
+  {
+    templateKey: "global.ticket_updated",
+    type: "ticket_updated",
+    subjectTemplate: "Update on support ticket {{ticketNumber}}",
+    htmlTemplate: renderLayout({
+      preheader: "There is an update to your support ticket.",
+      eyebrow: "Ticket update",
+      title: "Your ticket was updated",
+      intro: "There is new activity on your InteraOne support request.",
+      children: `
+        <p class="text">Hi {{name}},</p>
+        <div class="panel">
+          <p class="section-title">{{ticketNumber}} - {{title}}</p>
+          <p class="meta">Status: <strong>{{status}}</strong> &nbsp; Priority: <strong>{{priority}}</strong></p>
+        </div>
+        <p class="text muted">{{updateSummary}}</p>
+      `,
+    }),
+    textTemplate: "Hi {{name}},\n\nYour support ticket {{ticketNumber}} ({{title}}) was updated.\nStatus: {{status}}\nPriority: {{priority}}\n\n{{updateSummary}}",
+  },
+  {
+    templateKey: "global.ticket_resolved",
+    type: "ticket_resolved",
+    subjectTemplate: "Support ticket {{ticketNumber}} has been resolved",
+    htmlTemplate: renderLayout({
+      preheader: "Your support ticket has been resolved.",
+      eyebrow: "Ticket resolved",
+      title: "Your issue is resolved",
+      intro: "We have marked your InteraOne support request as resolved.",
+      children: `
+        <p class="text">Hi {{name}},</p>
+        <div class="panel">
+          <p class="section-title">{{ticketNumber}} - {{title}}</p>
+          <p class="meta">Status: <strong>{{status}}</strong></p>
+        </div>
+        <p class="text muted">{{resolutionNote}}</p>
+      `,
+      footerNote: "If the issue is not resolved for you, reply to your support team or start a new conversation.",
+    }),
+    textTemplate: "Hi {{name}},\n\nYour support ticket {{ticketNumber}} ({{title}}) has been resolved.\n\n{{resolutionNote}}",
+  },
+  {
+    templateKey: "global.ticket_closed",
+    type: "ticket_closed",
+    subjectTemplate: "Support ticket {{ticketNumber}} has been closed",
+    htmlTemplate: renderLayout({
+      preheader: "Your support ticket is now closed.",
+      eyebrow: "Ticket closed",
+      title: "Your ticket is closed",
+      intro: "This InteraOne support request has been closed.",
+      children: `
+        <p class="text">Hi {{name}},</p>
+        <div class="panel">
+          <p class="section-title">{{ticketNumber}} - {{title}}</p>
+          <p class="meta">Status: <strong>{{status}}</strong></p>
+        </div>
+        <p class="text muted">{{resolutionNote}}</p>
+      `,
+      footerNote: "You can start a new conversation if you need further assistance.",
+    }),
+    textTemplate: "Hi {{name}},\n\nYour support ticket {{ticketNumber}} ({{title}}) has been closed.\n\n{{resolutionNote}}",
+  },
 ];
 
 export async function seedEmailTemplates(): Promise<{

@@ -196,4 +196,56 @@ export class ConversationService {
     if (!conversation) return { valid: true, found: false };
     return { valid: true, found: true, conversation };
   }
+
+  /**
+   * Returns the minimal gate fields the AI service needs to check
+   * whether it should still process a conversation (is it escalated / assigned?).
+   * Used by the AI conversation.cache instead of a direct DB call.
+   */
+  async getConversationGate(organizationId: string, conversationId: string) {
+    const conv = await Conversation.findOne(
+      { _id: conversationId, organizationId },
+      { status: 1, assignedTo: 1, "metadata.escalatedAt": 1, "metadata.humanJoinedAt": 1 },
+    ).lean();
+
+    if (!conv) return null;
+
+    return {
+      status: conv.status,
+      assignedTo: conv.assignedTo?.toString() || null,
+      metadata: {
+        escalatedAt: conv.metadata?.escalatedAt
+          ? new Date(conv.metadata.escalatedAt).toISOString()
+          : null,
+        humanJoinedAt: conv.metadata?.humanJoinedAt
+          ? new Date(conv.metadata.humanJoinedAt).toISOString()
+          : null,
+      },
+    };
+  }
+
+  /**
+   * Pushes a resolution entry to the conversation's metadata.resolvedQueries array.
+   * Called by the AI mark_query_resolved tool via API instead of a direct DB write.
+   */
+  async markQueryResolved(
+    organizationId: string,
+    conversationId: string,
+    resolutionEntry: Record<string, unknown>,
+  ) {
+    const resolvedAt = resolutionEntry.resolvedAt ? new Date(resolutionEntry.resolvedAt as string) : new Date();
+
+    const result = await Conversation.updateOne(
+      { _id: conversationId, organizationId },
+      {
+        $push: { "metadata.resolvedQueries": resolutionEntry },
+        $set: {
+          "metadata.lastResolvedAt": resolvedAt,
+          "metadata.lastResolvedBy": "ai_tool",
+        },
+      },
+    );
+
+    return result.matchedCount > 0;
+  }
 }

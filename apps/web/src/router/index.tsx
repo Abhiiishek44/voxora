@@ -8,6 +8,7 @@ import VerifyEmailPage from "../domains/auth/pages/verify-email/page";
 import AcceptInvitePage from "../domains/auth/pages/accept-invite/page";
 import { SelectOrgPage } from "@/domains/auth/pages/select-org/page";
 import { DashboardHomePage } from "@/domains/dashboard/pages/page";
+import { TicketsPage } from "@/domains/tickets/pages/tickets-page";
 
 import { MembersPage } from "@/domains/member/pages/members-page";
 import { RolesPage } from "@/domains/member/pages/roles-page";
@@ -135,6 +136,16 @@ const router = createBrowserRouter([
             <ProtectedRoute requiredRole="admin">
                 <DashboardLayout>
                     <RolesPage />
+                </DashboardLayout>
+            </ProtectedRoute>
+        ),
+    },
+    {
+        path: "/dashboard/tickets",
+        element: (
+            <ProtectedRoute requiredRole="agent">
+                <DashboardLayout>
+                    <TicketsPage />
                 </DashboardLayout>
             </ProtectedRoute>
         ),

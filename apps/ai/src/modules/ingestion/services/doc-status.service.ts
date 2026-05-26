@@ -1,4 +1,4 @@
-import { connectDB, KnowledgeModel } from "../../../infrastructure/db";
+import { internalApi } from "../../../infrastructure/api/internal.client";
 
 export async function setDocStatus(
   organizationId: string,
@@ -13,10 +13,9 @@ export async function setDocStatus(
     totalChunkCount?: number;
   },
 ): Promise<void> {
-  await connectDB();
-  
-  await (KnowledgeModel as any).findOneAndUpdate(
-    { _id: documentId, organizationId },
-    { $set: update },
-  );
+  await internalApi.patch(`/knowledge/ai/${documentId}/status`, {
+    organizationId,
+    ...update,
+    lastIndexed: update.lastIndexed?.toISOString(),
+  });
 }

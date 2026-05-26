@@ -108,4 +108,34 @@ export class ContactsController {
       sendError(res, 400, error.message || "Failed to upsert contact from AI");
     }
   }
+
+  static async aiSeekContact(req: Request, res: Response): Promise<void> {
+    try {
+      const { organizationId, email, phone, name } = req.query as Record<string, string>;
+
+      if (!organizationId) {
+        sendError(res, 400, "organizationId is required");
+        return;
+      }
+      if (!email && !phone && !name) {
+        sendError(res, 400, "At least one of email, phone, or name is required");
+        return;
+      }
+
+      const contacts = await contactsService.listContacts(organizationId, {
+        search: email || phone || name,
+        limit: 5,
+      });
+
+      const found = contacts.length > 0;
+      sendResponse(res, 200, true, found ? "Contact found" : "No contact found", {
+        found,
+        contact: found ? contacts[0] : null,
+        total: contacts.length,
+      });
+    } catch (error: any) {
+      sendError(res, 500, error.message || "Failed to seek contact");
+    }
+  }
 }
+

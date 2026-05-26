@@ -5,6 +5,7 @@ import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 import { getSocketManager } from "@sockets/index";
 import logger from "@shared/core/logger";
 import { tracker } from "@shared/utils/tracker";
+import { Message } from "@shared/models";
 
 const conversationService = new ConversationService();
 
@@ -209,4 +210,128 @@ export const updateConversationStatus = asyncHandler(async (req: Request, res: R
       },
     );
   }
+});
+
+// ─── AI-Internal: Conversation Gate (status/escalation check) ───────────────
+
+export const aiGetConversationGate = asyncHandler(async (req: Request, res: Response) => {
+  const conversationId = req.params.conversationId as string;
+  const { organizationId } = req.query as Record<string, string>;
+
+  if (!organizationId) return sendError(res, 400, "organizationId is required");
+
+  const conv = await conversationService.getConversationGate(organizationId, conversationId);
+  if (!conv) return sendError(res, 404, "Conversation not found");
+
+  sendResponse(res, 200, true, "Conversation gate fetched", { gate: conv });
+});
+
+// ─── AI-Internal: Mark Query Resolved ────────────────────────────────────────
+
+export const aiResolveConversation = asyncHandler(async (req: Request, res: Response) => {
+  const conversationId = req.params.conversationId as string;
+  const { organizationId, resolutionEntry } = req.body;
+
+  if (!organizationId) return sendError(res, 400, "organizationId is required");
+  if (!resolutionEntry) return sendError(res, 400, "resolutionEntry is required");
+
+  const result = await conversationService.markQueryResolved(
+    organizationId,
+    conversationId,
+    resolutionEntry,
+  );
+
+  if (!result) return sendError(res, 404, "Conversation not found");
+
+  sendResponse(res, 200, true, "Query marked as resolved", { resolutionId: resolutionEntry.id });
+});
+
+// ─── AI-Internal: Conversation Memory ────────────────────────────────────────
+
+export const aiGetMemory = asyncHandler(async (req: Request, res: Response) => {
+  const conversationId = req.params.conversationId as string;
+  const { organizationId, limit } = req.query as Record<string, string>;
+
+  if (!organizationId) return sendError(res, 400, "organizationId is required");
+
+  const messages = await Message.find({ conversationId, organizationId })
+    .sort({ createdAt: -1 })
+    .limit(Number(limit) || 10)
+    .lean();
+
+  const memory = messages.reverse().map((m) => ({
+    role: m.metadata?.source === "widget" ? "user" : "assistant",
+    content: m.content,
+    senderName: m.metadata?.senderName || null,
+    timestamp: m.createdAt,
+  }));
+
+  sendResponse(res, 200, true, "Conversation memory fetched", { memory });
+});
+
+// ─── AI-Internal: Escalate to Human ──────────────────────────────────────────
+
+export const aiEscalate = asyncHandler(async (req: Request, res: Response) => {
+  const conversationId = req.params.conversationId as string;
+  const { organizationId, reason, agentId } = req.body;
+
+  if (!organizationId) return sendError(res, 400, "organizationId is required");
+
+  // If no specific agentId provided, auto-assign using existing logic (agent > admin > owner)
+  let resolvedAgentId = agentId;
+  if (!resolvedAgentId) {
+    const autoAssign = await conversationService.autoAssignConversation(organizationId);
+    resolvedAgentId = autoAssign.agentId || undefined;
+  }
+
+  const result = await conversationService.routeConversation(
+    organizationId,
+    conversationId,
+    { agentId: resolvedAgentId, reason },
+    "ai_tool",
+  );
+
+  if (!result.found) return sendError(res, 404, "Conversation not found");
+
+  // Set status to pending
+  await conversationService.patchConversationStatus(organizationId, conversationId, "pending");
+
+  // Fire real-time events so the dashboard reacts immediately
+  const sm = getSocketManager();
+  if (sm && result.selectedAgentId) {
+    try {
+      sm.emitToUser?.(result.selectedAgentId.toString(), "new_widget_conversation", {
+        conversationId,
+        subject: result.originalConversation?.subject,
+        routedTo: result.selectedAgentId,
+        agentName: result.agentName,
+        reason: reason || "AI escalation",
+        timestamp: new Date(),
+      });
+      sm.emitToConversation(conversationId, "conversation_escalated", {
+        conversationId,
+        reason: reason || "AI escalated this conversation to a human agent",
+        agent: {
+          id: result.selectedAgentId.toString(),
+          name: result.agentName,
+          email: result.agentEmail,
+        },
+      });
+    } catch (err: any) {
+      logger.error(`[AI Escalate] Socket emit failed: ${err?.message}`);
+    }
+  } else if (sm) {
+    // No agent online — notify org room so any agent can pick it up
+    sm.ioInstance?.to(`org:${organizationId}`).emit("conversation_pending", {
+      conversationId,
+      reason: reason || "AI escalated — awaiting agent",
+    });
+  }
+
+  sendResponse(res, 200, true, "Escalated to human agent", {
+    conversationId,
+    assignedAgent: result.selectedAgentId?.toString() || null,
+    agentName: result.agentName || null,
+    status: "pending",
+  });
 });

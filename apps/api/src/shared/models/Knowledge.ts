@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 import { IOrganization } from "./Organization";
 
-export type KnowledgeSource = "pdf" | "docx" | "text" | "url";
+export type KnowledgeSource = "pdf" | "docx" | "text" | "url" | "faq";
 export type KnowledgeStatus = "pending" | "queued" | "indexing" | "indexed" | "failed";
 
 export interface IKnowledge extends Document {
@@ -16,7 +16,7 @@ export interface IKnowledge extends Document {
   fileKey?: string;
   fileSize?: number;
   mimeType?: string;
-  // Text/URL
+  // Text/URL/FAQ
   content?: string;
   sourceUrl?: string;
   // URL-sync options (only for source === "url")
@@ -44,7 +44,7 @@ const KnowledgeSchema = new Schema<IKnowledge>(
     catalog: { type: String, trim: true },
     source: {
       type: String,
-      enum: ["pdf", "docx", "text", "url"],
+      enum: ["pdf", "docx", "text", "url", "faq"],
       required: true,
     },
     status: {

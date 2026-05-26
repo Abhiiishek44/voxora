@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate, requireRole, requireWithinLimit } from "@shared/security/middleware";
+import { authenticate, requireRole, requireWithinLimit, validateAiSecret } from "@shared/security/middleware";
 import { validateRequest } from "@shared/security/middleware/validation";
 import {
   getKnowledgeItems,
@@ -10,10 +10,19 @@ import {
   deleteKnowledge,
   reindexKnowledge,
   updateKnowledge,
+  aiUpdateDocStatus,
+  aiGetSyncInfo,
 } from "./knowledge.controller";
 import { knowledgeSchema } from "./knowledge.schema";
 
 const router = Router();
+
+// ─── AI-Internal Routes (x-ai-tool-secret, no JWT) ──────────────────────────
+
+router.patch("/ai/:documentId/status", validateAiSecret, aiUpdateDocStatus);
+router.get("/ai/:documentId/sync-info", validateAiSecret, aiGetSyncInfo);
+
+// ─── Admin Dashboard Routes (JWT required) ───────────────────────────────────
 
 router.use(authenticate);
 router.use(requireRole("admin"));

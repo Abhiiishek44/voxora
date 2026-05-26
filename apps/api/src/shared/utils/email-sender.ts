@@ -10,7 +10,7 @@ export interface ResolvedFromEmail {
 
 function defaultFrom(): ResolvedFromEmail {
   return {
-    name: config.email.from.name,
+    name: "InteraOne",
     email: config.email.from.email,
   };
 }

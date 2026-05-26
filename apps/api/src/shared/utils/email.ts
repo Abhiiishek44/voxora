@@ -180,3 +180,50 @@ export async function buildForgotPasswordOTPEmail(
     otp: escapeHtml(otp),
   });
 }
+
+export async function buildAgentVerificationOTPEmail(
+  otp: string,
+): Promise<BuiltEmail> {
+  return buildFromTemplate("agent_verification_otp", {
+    otp: escapeHtml(otp),
+  });
+}
+
+export async function buildConversationSummaryEmail(
+  name: string,
+  companyName: string,
+  summary: string,
+): Promise<BuiltEmail> {
+  return buildFromTemplate("conversation_summary", {
+    name: escapeHtml(name),
+    companyName: escapeHtml(companyName),
+    summary: escapeHtml(summary),
+  });
+}
+
+export type TicketEmailEvent = "created" | "updated" | "resolved" | "closed";
+
+export interface TicketEmailDetails {
+  name: string;
+  ticketNumber: string;
+  title: string;
+  status: string;
+  priority: string;
+  updateSummary?: string;
+  resolutionNote?: string;
+}
+
+export async function buildTicketLifecycleEmail(
+  event: TicketEmailEvent,
+  details: TicketEmailDetails,
+): Promise<BuiltEmail> {
+  return buildFromTemplate(`ticket_${event}` as EmailTemplateType, {
+    name: escapeHtml(details.name),
+    ticketNumber: escapeHtml(details.ticketNumber),
+    title: escapeHtml(details.title),
+    status: escapeHtml(details.status),
+    priority: escapeHtml(details.priority),
+    updateSummary: escapeHtml(details.updateSummary || "Your support request has been updated."),
+    resolutionNote: escapeHtml(details.resolutionNote || "No additional resolution note was provided."),
+  });
+}

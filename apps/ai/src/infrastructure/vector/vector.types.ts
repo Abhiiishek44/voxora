@@ -4,7 +4,7 @@ export interface VectorSearchResult {
   payload: {
     organizationId: string;
     documentId: string;
-    fileKey: string;  
+    fileKey: string;
     fileName: string;
     chunkIndex: number;
     text: string;
@@ -13,13 +13,10 @@ export interface VectorSearchResult {
 }
 
 export interface VectorStore {
-  
-
-
 
   ensureCollection(dimensions: number): Promise<void>;
 
-   
+
   upsert(
     points: Array<{
       id: string;
@@ -28,12 +25,12 @@ export interface VectorStore {
     }>,
   ): Promise<void>;
 
-   
+
   search(
     vector: number[],
-    options: { organizationId: string; topK?: number },
+    options: { organizationId: string; topK?: number; type?: string },
   ): Promise<VectorSearchResult[]>;
 
-   
+
   deleteByDocumentId(documentId: string, organizationId: string): Promise<void>;
 }

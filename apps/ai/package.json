@@ -17,7 +17,6 @@
   "dependencies": {
     "@google/genai": "^0.7.0",
     "@qdrant/js-client-rest": "^1.17.0",
-    "@socket.io/redis-emitter": "^5.1.0",
     "axios": "^1.13.5",
     "bullmq": "^5.0.0",
     "cheerio": "^1.0.0-rc.12",
@@ -25,13 +24,11 @@
     "ioredis": "^5.3.2",
     "mammoth": "^1.11.0",
     "minio": "^8.0.6",
-    "mongoose": "^8.23.0",
     "p-limit": "^7.3.0",
     "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",
-    "@types/mongoose": "^5.11.96",
     "@types/node": "^20.0.0",
     "@types/pdf-parse": "^1.1.5",
     "ts-node-dev": "^2.0.0",
