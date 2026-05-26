@@ -101,7 +101,7 @@ class KnowledgeService {
       title: string;
       description?: string;
       catalog?: string;
-      source: "text" | "url";
+      source: "text" | "url" | "faq";
       content?: string;
       url?: string;
       fetchMode?: "single" | "crawl";

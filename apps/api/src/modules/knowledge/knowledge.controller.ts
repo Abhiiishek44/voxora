@@ -1,8 +1,9 @@
 import { Request, Response } from "express";
-import { asyncHandler, sendResponse } from "@shared/core/response";
+import { asyncHandler, sendError, sendResponse } from "@shared/core/response";
 import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 import KnowledgeService from "./knowledge.service";
 import { tracker } from "@shared/utils/tracker";
+import { Knowledge } from "@shared/models";
 
 const getOrgId = (req: Request): string => (req as AuthenticatedRequest).user.activeOrganizationId;
 const getUserId = (req: Request): string => (req as AuthenticatedRequest).user.userId;
@@ -95,4 +96,59 @@ export const updateKnowledge = asyncHandler(async (req: Request, res: Response) 
 export const createTextKnowledge = asyncHandler(async (req: Request, res: Response) => {
   const doc = await KnowledgeService.createTextEntry(req.body, getUserId(req), getOrgId(req));
   sendResponse(res, 201, true, "Knowledge entry created and queued for indexing", doc);
+});
+
+// ─── AI-Internal Endpoints (x-ai-tool-secret) ──────────────────────────────
+
+// PATCH /api/v1/knowledge/ai/:documentId/status
+// Called by apps/ai doc-status.service to update indexing status without a direct DB connection.
+export const aiUpdateDocStatus = asyncHandler(async (req: Request, res: Response) => {
+  const { documentId } = req.params;
+  const { organizationId, status, wordCount, chunkCount, lastIndexed, errorMessage, failedChunkCount, totalChunkCount } = req.body;
+
+  if (!organizationId || !status) {
+    return sendError(res, 400, "organizationId and status are required");
+  }
+
+  const patch: Record<string, unknown> = { status };
+  if (wordCount !== undefined) patch.wordCount = wordCount;
+  if (chunkCount !== undefined) patch.chunkCount = chunkCount;
+  if (lastIndexed !== undefined) patch.lastIndexed = new Date(lastIndexed);
+  if (errorMessage !== undefined) patch.errorMessage = errorMessage;
+  if (failedChunkCount !== undefined) patch.failedChunkCount = failedChunkCount;
+  if (totalChunkCount !== undefined) patch.totalChunkCount = totalChunkCount;
+
+  const doc = await Knowledge.findOneAndUpdate(
+    { _id: documentId, organizationId },
+    { $set: patch },
+    { new: true },
+  );
+
+  if (!doc) return sendError(res, 404, "Knowledge document not found");
+  sendResponse(res, 200, true, "Document status updated", { id: documentId, status: doc.status });
+});
+
+// GET /api/v1/knowledge/ai/:documentId/sync-info
+// Called by apps/ai ingestion worker to retrieve URL re-crawl scheduling fields.
+export const aiGetSyncInfo = asyncHandler(async (req: Request, res: Response) => {
+  const { documentId } = req.params;
+  const { organizationId } = req.query as Record<string, string>;
+
+  if (!organizationId) return sendError(res, 400, "organizationId is required");
+
+  const doc = await Knowledge.findOne(
+    { _id: documentId, organizationId },
+    { isPaused: 1, syncFrequency: 1, sourceUrl: 1, fetchMode: 1, crawlDepth: 1, title: 1 },
+  ).lean();
+
+  if (!doc) return sendError(res, 404, "Knowledge document not found");
+
+  sendResponse(res, 200, true, "Sync info fetched", {
+    isPaused: doc.isPaused ?? false,
+    syncFrequency: doc.syncFrequency ?? null,
+    sourceUrl: doc.sourceUrl ?? null,
+    fetchMode: doc.fetchMode ?? null,
+    crawlDepth: doc.crawlDepth ?? null,
+    title: doc.title,
+  });
 });

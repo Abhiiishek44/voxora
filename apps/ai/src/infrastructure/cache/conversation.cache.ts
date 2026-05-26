@@ -1,5 +1,5 @@
 import { cacheRedis } from "./redis.client";
-import { connectDB, ConversationModel } from "../db";
+import { internalApi } from "../api/internal.client";
 
 const CACHE_TTL_SECONDS = parseInt(
   process.env.CONVERSATION_CACHE_TTL_SECONDS || "5",
@@ -28,6 +28,7 @@ interface CachedGate {
 
 export async function getConversationGate(
   conversationId: string,
+  organizationId: string,
 ): Promise<ConversationGate | null> {
   if (!conversationId) return null;
   const key = `${CACHE_PREFIX}:${conversationId}`;
@@ -47,32 +48,29 @@ export async function getConversationGate(
     }
   }
 
-  await connectDB();
-  const conv = await (ConversationModel as any)
-    .findById(conversationId)
-    .select("status metadata assignedTo")
-    .lean();
+  try {
+    const { data } = await internalApi.get(
+      `/conversations/ai/${conversationId}/gate`,
+      { params: { organizationId } },
+    );
 
-  if (!conv) {
-    await cacheRedis.set(key, JSON.stringify({ missing: true }), "EX", CACHE_TTL_SECONDS);
+    const gate: ConversationGate = data?.data?.gate ?? null;
+
+    if (!gate) {
+      await cacheRedis.set(key, JSON.stringify({ missing: true }), "EX", CACHE_TTL_SECONDS);
+      return null;
+    }
+
+    await cacheRedis.set(key, JSON.stringify(gate), "EX", CACHE_TTL_SECONDS);
+    return gate;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      await cacheRedis.set(key, JSON.stringify({ missing: true }), "EX", CACHE_TTL_SECONDS);
+      return null;
+    }
+    // On unexpected errors, skip the cache and return null gracefully
     return null;
   }
-
-  const gate: ConversationGate = {
-    status: conv?.status,
-    assignedTo: conv?.assignedTo?.toString() || null,
-    metadata: {
-      escalatedAt: conv?.metadata?.escalatedAt
-        ? new Date(conv.metadata.escalatedAt).toISOString()
-        : null,
-      humanJoinedAt: conv?.metadata?.humanJoinedAt
-        ? new Date(conv.metadata.humanJoinedAt).toISOString()
-        : null,
-    },
-  };
-
-  await cacheRedis.set(key, JSON.stringify(gate), "EX", CACHE_TTL_SECONDS);
-  return gate;
 }
 
 export async function invalidateConversationGate(conversationId: string): Promise<void> {

@@ -5,10 +5,39 @@ import {
   resolveOrganization,
   requireRole,
   validateRequest,
+  validateAiSecret,
 } from "@shared/security/middleware";
 import { conversationSchema } from "./conversation.schema";
 
 const router = Router();
+
+// ─── AI-Internal Routes (x-ai-tool-secret, no JWT) ──────────────────────────
+
+router.get(
+  "/ai/:conversationId/memory",
+  validateAiSecret,
+  ConversationController.aiGetMemory,
+);
+
+router.get(
+  "/ai/:conversationId/gate",
+  validateAiSecret,
+  ConversationController.aiGetConversationGate,
+);
+
+router.post(
+  "/ai/:conversationId/resolve",
+  validateAiSecret,
+  ConversationController.aiResolveConversation,
+);
+
+router.post(
+  "/ai/:conversationId/escalate",
+  validateAiSecret,
+  ConversationController.aiEscalate,
+);
+
+// ─── Agent Dashboard Routes (JWT required) ───────────────────────────────────
 
 // All agent dashboard conversation routes require org context.
 router.use(auth, resolveOrganization, requireRole("agent"));
@@ -48,3 +77,4 @@ router.patch(
 );
 
 export default router;
+

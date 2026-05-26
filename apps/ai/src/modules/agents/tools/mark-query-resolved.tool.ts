@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { Tool, ToolExecutionContext, ToolParameterSchema } from "../agent.types";
-import { connectDB, ConversationModel } from "../../../infrastructure/db";
+import { internalApi } from "../../../infrastructure/api/internal.client";
 
 export class MarkQueryResolvedTool implements Tool {
   readonly name = "mark_query_resolved";
@@ -66,7 +66,7 @@ export class MarkQueryResolvedTool implements Tool {
         throw new Error("summary, reason, or query must be provided");
       }
 
-      const resolvedAt = new Date();
+      const resolvedAt = new Date().toISOString();
       const resolutionId = randomUUID();
 
       const resolutionEntry: Record<string, unknown> = {
@@ -80,21 +80,29 @@ export class MarkQueryResolvedTool implements Tool {
       if (query) resolutionEntry.query = query;
       if (messageId) resolutionEntry.messageId = messageId;
 
-      await connectDB();
+      // 1. Push resolution entry to conversation metadata
+      await internalApi.post(`/conversations/ai/${conversationId}/resolve`, {
+        organizationId,
+        resolutionEntry,
+      });
 
-      const result = await (ConversationModel as any).updateOne(
-        { _id: conversationId, organizationId },
-        {
-          $push: { "metadata.resolvedQueries": resolutionEntry },
-          $set: {
-            "metadata.lastResolvedAt": resolvedAt,
-            "metadata.lastResolvedBy": "ai_tool",
-          },
-        },
-      );
+      // 2. Automatically create a Resolved Ticket in CRM for audit trail
+      try {
+        const ticketTitle = summary || reason || query || "AI Resolved Query";
+        const ticketDescription = `Issue successfully resolved by AI during conversation chat.\n\nQuery: "${query || summary}"\nResolution Reason: ${reason || summary}`;
 
-      if (!result.matchedCount) {
-        throw new Error("Conversation not found for resolution tracking");
+        await internalApi.post("/tickets/ai", {
+          organizationId,
+          conversationId,
+          title: ticketTitle,
+          description: ticketDescription,
+          status: "resolved",
+          priority: "medium",
+          tags: ["ai-resolved"],
+        });
+      } catch (ticketErr: any) {
+        console.error(`[Resolution] Failed to auto-create resolved ticket: ${ticketErr?.response?.data?.message || ticketErr.message}`);
+        // Do not fail the whole resolution execution if ticket creation fails
       }
 
       return { status: "ok", resolutionId };

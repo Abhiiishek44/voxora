@@ -4,3 +4,4 @@ export { globalRateLimit, authRateLimit, billingWebhookRateLimit, errorHandler, 
 export { requireEeFeature } from "./ee";
 export { requireEeAvailable } from "./ee";
 export { requireWithinLimit, incrementMessageUsage, getOrganizationUsage } from "./rate-limit";
+export { validateAiSecret } from "./ai-secret";

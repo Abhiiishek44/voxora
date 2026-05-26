@@ -1,6 +1,6 @@
-export type KnowledgeSource = "text" | "pdf" | "docx" | "url";
+export type KnowledgeSource = "text" | "pdf" | "docx" | "url" | "faq";
 export type KnowledgeStatus = "indexed" | "indexing" | "failed" | "pending" | "queued";
-export type AddKnowledgeSource = "text" | "pdf" | "docx";
+export type AddKnowledgeSource = "text" | "pdf" | "docx" | "faq";
 
 export interface KnowledgeBase {
   _id: string;
@@ -47,7 +47,7 @@ export interface KnowledgeCreatePayload {
   title: string;
   description?: string;
   catalog?: string;
-  source: "text" | "url";
+  source: "text" | "url" | "faq";
   content?: string;
   url?: string;
   fetchMode?: FetchMode;

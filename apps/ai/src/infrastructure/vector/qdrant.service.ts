@@ -67,7 +67,7 @@ class QdrantVectorStore implements VectorStore {
 
   async search(
     vector: number[],
-    options: { organizationId: string; topK?: number },
+    options: { organizationId: string; topK?: number; type?: string },
   ): Promise<VectorSearchResult[]> {
     console.log(`[Qdrant] ════════════════════════════════════════════════`);
     console.log(`[Qdrant] Starting vector search`);
@@ -96,7 +96,12 @@ class QdrantVectorStore implements VectorStore {
       { key: "organizationId", match: { value: options.organizationId } }
     ];
 
-    console.log(`[Qdrant]   Filter: organizationId == "${options.organizationId}"`);
+    if (options.type) {
+      mustConditions.push({ key: "type", match: { value: options.type } });
+      console.log(`[Qdrant]   Filter: organizationId == "${options.organizationId}" AND type == "${options.type}"`);
+    } else {
+      console.log(`[Qdrant]   Filter: organizationId == "${options.organizationId}"`);
+    }
 
     const searchParams = {
       vector,

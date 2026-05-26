@@ -8,6 +8,11 @@ import {
   buildWelcomeEmail,
   buildEmailVerificationOTPEmail,
   buildForgotPasswordOTPEmail,
+  buildAgentVerificationOTPEmail,
+  buildConversationSummaryEmail,
+  buildTicketLifecycleEmail,
+  type TicketEmailDetails,
+  type TicketEmailEvent,
   type EmailOptions,
 } from "../utils/email";
 import { resolveFromEmail } from "../utils/email-sender";
@@ -32,7 +37,19 @@ const emailQueue = new Queue<EmailOptions>(EMAIL_QUEUE, {
 });
 
 async function enqueueEmail(
-  jobName: "invite" | "password_reset" | "welcome" | "email_verification_link" | "email_verification_otp" | "password_reset_otp",
+  jobName:
+    | "invite"
+    | "password_reset"
+    | "welcome"
+    | "email_verification_link"
+    | "email_verification_otp"
+    | "password_reset_otp"
+    | "agent_verification_otp"
+    | "conversation_summary"
+    | "ticket_created"
+    | "ticket_updated"
+    | "ticket_resolved"
+    | "ticket_closed",
   payload: { to: string; subject: string; html: string; text?: string },
 ): Promise<void> {
   const from = await resolveFromEmail();
@@ -103,6 +120,51 @@ export async function enqueueForgotPasswordOTPEmail(
   if (!isEmailEnabled()) return false;
   const { subject, html } = await buildForgotPasswordOTPEmail(name, otp);
   await enqueueEmail("password_reset_otp", { to, subject, html });
+  return true;
+}
+
+export async function enqueueRawEmail(
+  to: string,
+  subject: string,
+  html: string,
+  text?: string,
+): Promise<boolean> {
+  if (!isEmailEnabled()) return false;
+  const from = await resolveFromEmail();
+  await emailQueue.add("raw_email", { to, subject, html, text, from });
+  return true;
+}
+
+export async function enqueueAgentVerificationOTPEmail(
+  to: string,
+  otp: string,
+): Promise<boolean> {
+  if (!isEmailEnabled()) return false;
+  const { subject, html, text } = await buildAgentVerificationOTPEmail(otp);
+  await enqueueEmail("agent_verification_otp", { to, subject, html, text });
+  return true;
+}
+
+export async function enqueueConversationSummaryEmail(
+  to: string,
+  name: string,
+  companyName: string,
+  summary: string,
+): Promise<boolean> {
+  if (!isEmailEnabled()) return false;
+  const { subject, html, text } = await buildConversationSummaryEmail(name, companyName, summary);
+  await enqueueEmail("conversation_summary", { to, subject, html, text });
+  return true;
+}
+
+export async function enqueueTicketLifecycleEmail(
+  to: string,
+  event: TicketEmailEvent,
+  details: TicketEmailDetails,
+): Promise<boolean> {
+  if (!isEmailEnabled()) return false;
+  const { subject, html, text } = await buildTicketLifecycleEmail(event, details);
+  await enqueueEmail(`ticket_${event}`, { to, subject, html, text });
   return true;
 }
 

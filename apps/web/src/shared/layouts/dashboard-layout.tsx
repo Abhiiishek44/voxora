@@ -27,6 +27,7 @@ import {
   UserPlus,
   Info,
   Clock,
+  Ticket,
 } from "lucide-react";
 import { useAuth } from "@/domains/auth/hooks/useAuth";
 import { useLogout } from "@/domains/auth/hooks/useLogout";
@@ -115,6 +116,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const base = [
       { label: "Dashboard", to: "/dashboard" },
       { label: "Inbox", to: "/dashboard/conversations/inbox" },
+      { label: "Tickets", to: "/dashboard/tickets" },
     ];
 
     if (canAccessContacts) {
@@ -335,7 +337,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </p>
             {[
               { label: "Inbox", to: "/dashboard/conversations/inbox", icon: Inbox },
-
+              { label: "Tickets", to: "/dashboard/tickets", icon: Ticket },
             ].map((item) => (
               <Link key={item.to} to={item.to}>
                 <Button

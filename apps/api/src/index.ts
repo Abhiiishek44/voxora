@@ -25,6 +25,8 @@ import { membershipRouter } from "@modules/membership";
 import { contactsRouter } from "@modules/contacts";
 import { notificationRouter } from "@modules/notification";
 import { analyticsRouter } from "@modules/analytics/analytics.routes";
+import { ticketsRouter } from "@modules/tickets";
+import { emailRouter } from "@modules/email";
 
 class Application {
   private app: express.Application;
@@ -127,6 +129,8 @@ class Application {
     router.use("/contacts", contactsRouter);
     router.use("/notifications", notificationRouter);
     router.use("/analytics", analyticsRouter);
+    router.use("/tickets", ticketsRouter);
+    router.use("/email", emailRouter);
 
     // Health check
     router.get("/health", (req, res) => {

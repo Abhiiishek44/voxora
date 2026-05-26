@@ -6,7 +6,7 @@ export interface DocumentJob {
    
   jobType?: "ingest" | "delete-vectors";
    
-  source: "pdf" | "docx" | "text" | "url";
+  source: "pdf" | "docx" | "text" | "url" | "faq";
    
   fileKey: string;
    

@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   AlertCircle,
   FolderOpen,
+  HelpCircle,
 } from "lucide-react";
 import { Label } from "@/shared/ui/label";
 import type {
@@ -100,6 +101,14 @@ export function AddKnowledgeModal({
 
     if (selectedSource === "text" && !formData.content?.trim()) {
       newErrors.content = "Content is required";
+    }
+    if (selectedSource === "faq") {
+      if (!formData.title?.trim()) {
+        newErrors.title = "Question is required";
+      }
+      if (!formData.content?.trim()) {
+        newErrors.content = "Answer is required";
+      }
     }
     if ((selectedSource === "pdf" || selectedSource === "docx") && !selectedFile) {
       newErrors.file = "Please upload a file";
@@ -192,6 +201,22 @@ export function AddKnowledgeModal({
               </button>
 
               <button
+                onClick={() => handleSourceSelect("faq")}
+                className="flex items-center gap-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer text-left"
+              >
+                <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                  <HelpCircle className="h-6 w-6 text-emerald-500" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium text-foreground">FAQ Entry</div>
+                  <div className="text-sm text-muted-foreground">
+                    Create a curated Question & Answer pair
+                  </div>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </button>
+
+              <button
                 onClick={() => handleSourceSelect("pdf")}
                 className="flex items-center gap-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer text-left"
               >
@@ -212,6 +237,46 @@ export function AddKnowledgeModal({
 
         {step === 2 && selectedSource && (
           <div className="space-y-4">
+            {selectedSource === "faq" && (
+              <div className="space-y-4">
+                <div>
+                  <Label className="block mb-2">Question</Label>
+                  <Input
+                    value={formData.title || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, title: e.target.value }))
+                    }
+                    placeholder="e.g., What is InteraOne's support email?"
+                    className="cursor-text"
+                  />
+                  {errors.title && (
+                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.title}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <Label className="block mb-2">Answer</Label>
+                  <Textarea
+                    value={formData.content || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, content: e.target.value }))
+                    }
+                    placeholder="Enter the curated answer for this FAQ..."
+                    className="w-full h-48 cursor-text resize-none"
+                  />
+                  {errors.content && (
+                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.content}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {selectedSource === "text" && (
               <div>
                 <Label className="block mb-2">Content</Label>
@@ -303,14 +368,14 @@ export function AddKnowledgeModal({
               <div className="space-y-4">
                 <div>
                   <Label className="block mb-2">
-                    Title <span className="text-red-500">*</span>
+                    {selectedSource === "faq" ? "Question" : "Title"} <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     value={formData.title || ""}
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, title: e.target.value }))
                     }
-                    placeholder="e.g., Refund Policy"
+                    placeholder={selectedSource === "faq" ? "e.g., What is InteraOne's support email?" : "e.g., Refund Policy"}
                     className="cursor-text"
                   />
                   {errors.title && (
