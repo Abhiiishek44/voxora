@@ -10,7 +10,10 @@ export const ticketsSchema = {
     description: Joi.string().trim().max(10000).allow("", null),
     priority: Joi.string().valid("low", "medium", "high", "urgent"),
     status: Joi.string().valid("open", "in_progress", "resolved", "closed"),
+    requesterName: Joi.string().trim().min(2).max(120).required(),
+    requesterEmail: Joi.string().trim().email().required(),
     tags: Joi.array().items(Joi.string().trim().max(50)).max(20),
+    idempotencyKey: Joi.string().trim().max(200),
   }),
 
   // ── AI-internal: update ────────────────────────────────────────────────────

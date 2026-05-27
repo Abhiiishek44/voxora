@@ -64,10 +64,21 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3002";
 
 interface Notification {
   id: string;
-  type: "assignment" | "ai_sync" | "administrative" | "system";
+  type: "assignment" | "ai_sync" | "administrative" | "system" | "billing";
   title: string;
   description: string;
   timestamp: Date;
+  isRead: boolean;
+}
+
+interface NotificationApiItem {
+  _id: string;
+  id?: string;
+  type: Notification["type"];
+  title: string;
+  description: string;
+  createdAt?: string;
+  timestamp?: string;
   isRead: boolean;
 }
 
@@ -205,12 +216,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     socketRef.current = socket;
 
-    socket.on("notification", (newNotif: any) => {
+    socket.on("notification", (newNotif: NotificationApiItem) => {
       setNotifications(prev => [
         {
           ...newNotif,
+          id: newNotif.id || newNotif._id,
           timestamp: new Date(newNotif.timestamp || Date.now()),
-          isRead: false
+          isRead: newNotif.isRead ?? false
         },
         ...prev
       ].slice(0, 50)); // Keep last 50
@@ -226,12 +238,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     if (!isAuthenticated || !user) return;
     const fetchNotifications = async () => {
       try {
-        const res = await apiClient.get<any>(`/notifications`);
-        if (res?.data?.data) {
-          setNotifications(res.data.data.map((n: any) => ({
+        const res = await apiClient.get<{ data?: NotificationApiItem[] }>(`/notifications`);
+        if (res?.data) {
+          setNotifications(res.data.map((n) => ({
             ...n,
-            id: n._id,
-            timestamp: new Date(n.createdAt || n.timestamp)
+            id: n.id || n._id,
+            timestamp: new Date(n.createdAt || n.timestamp || Date.now())
           })));
         }
       } catch (err) {
@@ -668,7 +680,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                 <Bell className="h-8 w-8 text-muted-foreground/50" />
                               </div>
                               <p className="text-base font-medium text-foreground">No notifications yet</p>
-                              <p className="text-sm text-muted-foreground mt-1">We&apos;ll notify you when something important happens.</p>
+                              <p className="text-sm text-muted-foreground mt-1">Important updates appear here.</p>
                             </div>
                           ) : (
                             <div className="divide-y divide-border/40 space-y-1">

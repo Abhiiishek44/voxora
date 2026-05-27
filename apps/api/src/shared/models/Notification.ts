@@ -3,7 +3,7 @@ import mongoose, { Document, Model, Schema } from "mongoose";
 export interface INotification extends Document {
   organizationId: mongoose.Types.ObjectId;
   userId?: mongoose.Types.ObjectId;
-  type: "assignment" | "ai_sync" | "system" | "billing";
+  type: "assignment" | "ai_sync" | "administrative" | "system" | "billing";
   title: string;
   description: string;
   isRead: boolean;

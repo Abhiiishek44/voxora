@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Membership, MembershipRole } from "@shared/models";
+import NotificationService from "@modules/notification/notification.service";
 
 export class AdminService {
   // ═══════════════════════════════════════════════════
@@ -55,7 +56,7 @@ export class AdminService {
     return membership;
   }
 
-  async updateAgent(organizationId: string, userId: string, updateData: any) {
+  async updateAgent(organizationId: string, userId: string, updateData: any, requestingUserId: string) {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return { success: false, message: "Invalid user ID", statusCode: 400 };
     }
@@ -63,6 +64,13 @@ export class AdminService {
     const updateFields: any = {};
 
     if (updateData.role) updateFields.role = updateData.role as MembershipRole;
+
+    const existingMembership = await Membership.findOne({ userId, organizationId })
+      .populate("userId", "name email status");
+
+    if (!existingMembership) {
+      return { success: false, message: "Agent not found in this organization", statusCode: 404 };
+    }
 
     const membership = await Membership.findOneAndUpdate(
       { userId, organizationId },
@@ -75,15 +83,31 @@ export class AdminService {
       return { success: false, message: "Agent not found in this organization", statusCode: 404 };
     }
 
+    if (updateData.role) {
+      await this.notifyRoleManagementAction(
+        organizationId,
+        requestingUserId,
+        `Updated ${this.possessive(this.memberName(membership))} role to ${this.roleLabel(updateData.role as MembershipRole)}.`,
+        {
+          action: "role_updated",
+          targetUserId: userId,
+          targetMembershipId: membership._id.toString(),
+          previousRole: existingMembership.role,
+          role: updateData.role,
+        },
+      );
+    }
+
     return { success: true, data: membership };
   }
 
-  async deleteAgent(organizationId: string, userId: string) {
+  async deleteAgent(organizationId: string, userId: string, requestingUserId: string) {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return { success: false, message: "Invalid user ID", statusCode: 400 };
     }
 
-    const membership = await Membership.findOne({ userId, organizationId });
+    const membership = await Membership.findOne({ userId, organizationId })
+      .populate("userId", "name email status");
     if (!membership) {
       return { success: false, message: "Agent not found", statusCode: 404 };
     }
@@ -93,7 +117,46 @@ export class AdminService {
     }
 
     await Membership.findByIdAndDelete(membership._id);
+    await this.notifyRoleManagementAction(
+      organizationId,
+      requestingUserId,
+      `Removed ${this.memberName(membership)} from the organization.`,
+      {
+        action: "member_removed",
+        targetUserId: userId,
+        targetMembershipId: membership._id.toString(),
+        role: membership.role,
+      },
+    );
     return { success: true };
+  }
+
+  private async notifyRoleManagementAction(
+    organizationId: string,
+    actorUserId: string,
+    description: string,
+    metadata: Record<string, unknown>,
+  ) {
+    await NotificationService.create({
+      organizationId,
+      userId: actorUserId,
+      type: "administrative",
+      title: "Role Management",
+      description,
+      metadata,
+    });
+  }
+
+  private memberName(membership: any): string {
+    return membership.userId?.name || membership.userId?.email || "this user";
+  }
+
+  private possessive(name: string): string {
+    return name.endsWith("s") ? `${name}'` : `${name}'s`;
+  }
+
+  private roleLabel(role: MembershipRole): string {
+    return role.charAt(0).toUpperCase() + role.slice(1);
   }
 
   // ═══════════════════════════════════════════════════

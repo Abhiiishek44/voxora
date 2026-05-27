@@ -67,7 +67,19 @@ export const addNoteAgent = asyncHandler(async (req: Request, res: Response) => 
 // ─── AI-Internal Endpoints (x-ai-tool-secret) ───────────────────────────────
 
 export const aiCreateTicket = asyncHandler(async (req: Request, res: Response) => {
-  const { organizationId, conversationId, contactId, title, description, priority, status, tags } = req.body;
+  const {
+    organizationId,
+    conversationId,
+    contactId,
+    title,
+    description,
+    priority,
+    status,
+    requesterName,
+    requesterEmail,
+    tags,
+    idempotencyKey,
+  } = req.body;
   const ticket = await service.createTicket({
     organizationId,
     conversationId,
@@ -76,8 +88,11 @@ export const aiCreateTicket = asyncHandler(async (req: Request, res: Response) =
     description,
     priority,
     status,
+    requesterName,
+    requesterEmail,
     source: "ai",
     tags,
+    idempotencyKey,
   });
   sendResponse(res, 201, true, "Ticket created by AI", { ticket });
 });

@@ -109,6 +109,13 @@ ticketSchema.index({ organizationId: 1, status: 1 });
 ticketSchema.index({ organizationId: 1, priority: 1 });
 ticketSchema.index({ organizationId: 1, createdAt: -1 });
 ticketSchema.index({ organizationId: 1, assignedTo: 1 });
+ticketSchema.index(
+  { organizationId: 1, "metadata.idempotencyKey": 1 },
+  {
+    unique: true,
+    partialFilterExpression: { "metadata.idempotencyKey": { $type: "string" } },
+  },
+);
 
 // ─── Auto-generate ticketNumber before validation ────────────────────────────
 ticketSchema.pre("validate", async function (next) {

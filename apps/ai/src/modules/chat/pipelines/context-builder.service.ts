@@ -182,6 +182,9 @@ function buildSystemPrompt(opts: BuildSystemPromptOptions): string {
        - bug reports are identified
        - follow-up work is needed
        - engineering/support action is required
+       - Before creating a support ticket, collect the user's full name, email address, and issue details. Reuse any name or email already provided earlier in the conversation and ask only for missing information. Once all required details are available, call the create-ticket tool exactly once. After successful creation, confirm the ticket number and do not create or resolve another ticket for the same issue.
+       - Validate that the email address looks reasonable before calling create_ticket. If it is missing or invalid, ask for a valid email address instead of creating a ticket.
+       - When the create_ticket tool succeeds, return only the ticket confirmation and ticket number.
 
     6. update_ticket
        Use when:
@@ -495,6 +498,21 @@ export async function buildContext(
     );
 
     const apiMemory = response.data?.data?.memory || [];
+    const visitor = response.data?.data?.visitor || {};
+    const knownVisitorDetails = [
+      visitor.name ? `- full name: ${visitor.name}` : "",
+      visitor.email ? `- email address: ${visitor.email}` : "",
+    ].filter(Boolean);
+
+    if (knownVisitorDetails.length > 0) {
+      systemPrompt += `
+
+  <known_visitor_details>
+    The following visitor details are already available from this conversation. Reuse them for ticket creation and do not ask for them again:
+${knownVisitorDetails.map((line) => `    ${line}`).join("\n")}
+  </known_visitor_details>`;
+    }
+
     console.log(`[History] API returned ${apiMemory.length} message(s) for conversation ${conversationId}`);
 
     for (const m of apiMemory) {

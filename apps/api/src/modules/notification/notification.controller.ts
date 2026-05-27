@@ -3,8 +3,6 @@ import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 import NotificationService from "./notification.service";
 import logger from "@shared/core/logger";
 import { sendSuccess, sendError, sendResponse } from "@shared/core/response";
-import { Notification } from "@shared/models";
-import { getSocketManager } from "../../sockets/index";
 
 class NotificationController {
   async getNotifications(req: Request, res: Response) {
@@ -66,21 +64,12 @@ class NotificationController {
         return sendError(res, 400, "organizationId, type, title, and description are required");
       }
 
-      const notif = await Notification.create({
+      const notif = await NotificationService.create({
         organizationId,
-        ...(userId ? { userId } : {}),
+        userId,
         type,
         title,
         description,
-      });
-
-      getSocketManager()?.emitToOrg(organizationId, "notification", {
-        id: notif._id,
-        type: notif.type,
-        title: notif.title,
-        description: notif.description,
-        timestamp: notif.createdAt,
-        isRead: notif.isRead,
       });
 
       return sendResponse(res, 201, true, "Notification created", { id: notif._id });

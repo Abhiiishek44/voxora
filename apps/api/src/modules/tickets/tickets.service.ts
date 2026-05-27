@@ -3,6 +3,7 @@ import { Ticket, ITicket, Conversation, Contact } from "@shared/models";
 import { enqueueTicketLifecycleEmail } from "@shared/queues/email.queue";
 import logger from "@shared/core/logger";
 import type { TicketEmailEvent } from "@shared/utils/email";
+import { getSocketManager } from "@sockets/index";
 
 interface CreateTicketInput {
   organizationId: string;
@@ -13,7 +14,10 @@ interface CreateTicketInput {
   priority?: "low" | "medium" | "high" | "urgent";
   status?: "open" | "in_progress" | "resolved" | "closed";
   source?: "ai" | "agent" | "api";
+  requesterName?: string;
+  requesterEmail?: string;
   tags?: string[];
+  idempotencyKey?: string;
 }
 
 interface UpdateTicketInput {
@@ -48,39 +52,139 @@ export class TicketsService {
       throw new Error("Invalid contactId");
     }
 
+    const requesterName = input.requesterName?.trim();
+    const requesterEmail = input.requesterEmail?.trim().toLowerCase();
+    if (input.source === "ai") {
+      if (!requesterName) throw new Error("requesterName is required");
+      if (!requesterEmail || !this.isValidEmail(requesterEmail)) {
+        throw new Error("A valid requesterEmail is required");
+      }
+    }
+
+    const idempotencyKey = input.idempotencyKey?.trim();
+    if (idempotencyKey) {
+      const existingTicket = await Ticket.findOne({
+        organizationId: input.organizationId,
+        "metadata.idempotencyKey": idempotencyKey,
+      });
+      if (existingTicket) return existingTicket;
+    }
+
     // Auto-assign logic: if the ticket is created within an existing conversation
     // that is already assigned to a human agent, automatically assign the ticket to them.
     let assignedTo: Types.ObjectId | null = null;
+    let contactId = input.contactId ? new Types.ObjectId(input.contactId) : null;
+    let conversation: any = null;
     if (input.conversationId) {
-      const conversation = await Conversation.findById(input.conversationId)
-        .select("assignedTo")
+      conversation = await Conversation.findOne({
+        _id: input.conversationId,
+        organizationId: input.organizationId,
+      })
+        .select("assignedTo visitor.sessionId")
         .lean();
       if (conversation?.assignedTo) {
         assignedTo = conversation.assignedTo;
       }
     }
 
-    const ticket = await Ticket.create({
-      organizationId: new Types.ObjectId(input.organizationId),
-      ...(input.conversationId ? { conversationId: new Types.ObjectId(input.conversationId) } : {}),
-      ...(input.contactId ? { contactId: new Types.ObjectId(input.contactId) } : {}),
-      title: input.title.trim(),
-      description: input.description?.trim(),
-      status: input.status || "open",
-      priority: input.priority || "medium",
-      source: input.source || "ai",
-      tags: (input.tags || []).map((t) => t.trim()).filter(Boolean).slice(0, 20),
-      notes: [],
-      metadata: {},
-      ...(input.status === "resolved" ? { resolvedAt: new Date() } : {}),
-      ...(input.status === "closed" ? { closedAt: new Date() } : {}),
-      ...(assignedTo ? { assignedTo } : {}),
-    });
+    if (requesterName && requesterEmail) {
+      if (input.conversationId) {
+        const sessionId = conversation?.visitor?.sessionId || `conv:${input.conversationId}`;
+
+        await Conversation.updateOne(
+          { _id: input.conversationId, organizationId: input.organizationId },
+          {
+            $set: {
+              "visitor.name": requesterName,
+              "visitor.email": requesterEmail,
+              "visitor.isAnonymous": false,
+              "visitor.providedInfoAt": new Date(),
+              "metadata.senderName": requesterName,
+              "metadata.senderEmail": requesterEmail,
+              "metadata.contactCapturedByAIAt": new Date(),
+              "metadata.contactCapturedByAI": true,
+            },
+          },
+        );
+
+        const contact = await Contact.findOneAndUpdate(
+          { organizationId: input.organizationId, sessionId },
+          {
+            $set: {
+              organizationId: input.organizationId,
+              sessionId,
+              conversationId: input.conversationId,
+              name: requesterName,
+              email: requesterEmail,
+              source: "ai",
+              lastActivityAt: new Date(),
+              metadata: {
+                updatedBy: "ai_ticket_create",
+                conversationId: input.conversationId,
+              },
+            },
+            $setOnInsert: {
+              tags: [],
+              notes: [],
+              conversations: [],
+              timeline: [],
+              insights: {
+                summary: "No insights yet.",
+                sentiment: "neutral",
+                topics: [],
+              },
+            },
+          },
+          { upsert: true, new: true, runValidators: true },
+        );
+
+        contactId = contact._id;
+      }
+    }
+
+    let ticket: ITicket;
+    try {
+      ticket = await Ticket.create({
+        organizationId: new Types.ObjectId(input.organizationId),
+        ...(input.conversationId ? { conversationId: new Types.ObjectId(input.conversationId) } : {}),
+        ...(contactId ? { contactId } : {}),
+        title: input.title.trim(),
+        description: input.description?.trim(),
+        status: input.status || "open",
+        priority: input.priority || "medium",
+        source: input.source || "ai",
+        tags: (input.tags || []).map((t) => t.trim()).filter(Boolean).slice(0, 20),
+        notes: [],
+        metadata: {
+          ...(idempotencyKey ? { idempotencyKey } : {}),
+          ...(requesterName ? { requesterName } : {}),
+          ...(requesterEmail ? { requesterEmail } : {}),
+        },
+        ...(input.status === "resolved" ? { resolvedAt: new Date() } : {}),
+        ...(input.status === "closed" ? { closedAt: new Date() } : {}),
+        ...(assignedTo ? { assignedTo } : {}),
+      });
+    } catch (error: any) {
+      if (idempotencyKey && error?.code === 11000) {
+        const existingTicket = await Ticket.findOne({
+          organizationId: input.organizationId,
+          "metadata.idempotencyKey": idempotencyKey,
+        });
+        if (existingTicket) return existingTicket;
+      }
+      throw error;
+    }
 
     const createdEvent: TicketEmailEvent =
       input.status === "resolved" ? "resolved" : input.status === "closed" ? "closed" : "created";
     await this.notifyTicketLifecycle(ticket, createdEvent);
+    await ticket.populate("assignedTo", "name email");
+    this.emitTicketChange(input.organizationId, "created", this.formatTicket(ticket));
     return ticket;
+  }
+
+  private isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
   // ─── List ──────────────────────────────────────────────────────────────────
@@ -92,7 +196,8 @@ export class TicketsService {
     const filter: Record<string, unknown> = { organizationId };
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
-    if (assignedTo) filter.assignedTo = assignedTo;
+    if (assignedTo === "unassigned") filter.assignedTo = null;
+    else if (assignedTo) filter.assignedTo = assignedTo;
 
     const [tickets, total] = await Promise.all([
       Ticket.find(filter)
@@ -105,7 +210,7 @@ export class TicketsService {
     ]);
 
     return {
-      tickets: tickets.map(this.formatTicket),
+      tickets: tickets.map((ticket) => this.formatTicket(ticket)),
       total,
       page,
       pages: Math.ceil(total / limit),
@@ -121,7 +226,10 @@ export class TicketsService {
       .populate("assignedTo", "name email")
       .lean();
 
-    return ticket ? this.formatTicket(ticket) : null;
+    if (!ticket) return null;
+
+    const requesterContact = await this.getRequesterContact(ticket);
+    return this.formatTicket(ticket, { requesterContact });
   }
 
   // ─── Update ────────────────────────────────────────────────────────────────
@@ -167,7 +275,9 @@ export class TicketsService {
     if (input.status === "closed" && previous.status !== "closed") event = "closed";
     await this.notifyTicketLifecycle(ticket, event, this.buildUpdateSummary(input));
 
-    return this.formatTicket(ticket);
+    const formatted = this.formatTicket(ticket);
+    this.emitTicketChange(organizationId, event === "closed" ? "closed" : "updated", formatted);
+    return formatted;
   }
 
   // ─── Close ─────────────────────────────────────────────────────────────────
@@ -207,7 +317,9 @@ export class TicketsService {
       await this.notifyTicketLifecycle(ticket, "closed", input.resolutionNote);
     }
 
-    return this.formatTicket(ticket);
+    const formatted = this.formatTicket(ticket);
+    this.emitTicketChange(organizationId, "closed", formatted);
+    return formatted;
   }
 
   // ─── Add Note ──────────────────────────────────────────────────────────────
@@ -229,14 +341,40 @@ export class TicketsService {
         },
       },
       { new: true },
-    ).lean();
+    )
+      .populate("assignedTo", "name email")
+      .lean();
 
-    return ticket ? this.formatTicket(ticket) : null;
+    if (!ticket) return null;
+
+    const formatted = this.formatTicket(ticket);
+    this.emitTicketChange(organizationId, "note_added", formatted);
+    return formatted;
   }
 
   // ─── Format ────────────────────────────────────────────────────────────────
 
-  private formatTicket(ticket: any) {
+  private emitTicketChange(
+    organizationId: string,
+    action: "created" | "updated" | "closed" | "note_added",
+    ticket: any,
+  ) {
+    getSocketManager()?.emitToOrg(organizationId, "ticket_updated", {
+      action,
+      ticket,
+    });
+  }
+
+  private formatTicket(
+    ticket: any,
+    options: {
+      requesterContact?: {
+        fullName: string | null;
+        email: string | null;
+        phone: string | null;
+      };
+    } = {},
+  ) {
     return {
       id: ticket._id.toString(),
       ticketNumber: ticket.ticketNumber,
@@ -266,9 +404,82 @@ export class TicketsService {
       resolutionNote: ticket.resolutionNote || null,
       resolvedAt: ticket.resolvedAt || null,
       closedAt: ticket.closedAt || null,
+      requesterContact: options.requesterContact,
       createdAt: ticket.createdAt,
       updatedAt: ticket.updatedAt,
     };
+  }
+
+  private async getRequesterContact(ticket: any): Promise<{
+    fullName: string | null;
+    email: string | null;
+    phone: string | null;
+  }> {
+    const metadata = ticket.metadata || {};
+    let fullName = this.normalizeContactValue(metadata.requesterName);
+    let email = this.normalizeEmailValue(metadata.requesterEmail);
+    let phone = this.normalizeContactValue(metadata.requesterPhone);
+    let contact: any = null;
+    let conversation: any = null;
+
+    if (ticket.contactId) {
+      contact = await Contact.findOne({
+        _id: ticket.contactId,
+        organizationId: ticket.organizationId,
+      })
+        .select("name email phone")
+        .lean();
+    }
+
+    if (ticket.conversationId) {
+      conversation = await Conversation.findOne({
+        _id: ticket.conversationId,
+        organizationId: ticket.organizationId,
+      })
+        .select("visitor.sessionId visitor.name visitor.email metadata.senderName metadata.senderEmail metadata.visitorPhone")
+        .lean();
+    }
+
+    if (!contact && conversation?.visitor?.sessionId) {
+      contact = await Contact.findOne({
+        organizationId: ticket.organizationId,
+        sessionId: conversation.visitor.sessionId,
+      })
+        .select("name email phone")
+        .lean();
+    }
+
+    fullName =
+      fullName ||
+      this.normalizeContactValue(contact?.name) ||
+      this.normalizeContactValue(conversation?.metadata?.senderName) ||
+      this.normalizeContactValue(conversation?.visitor?.name);
+
+    email =
+      email ||
+      this.normalizeEmailValue(contact?.email) ||
+      this.normalizeEmailValue(conversation?.metadata?.senderEmail) ||
+      this.normalizeEmailValue(conversation?.visitor?.email);
+
+    phone =
+      phone ||
+      this.normalizeContactValue(contact?.phone) ||
+      this.normalizeContactValue(conversation?.metadata?.visitorPhone);
+
+    return { fullName, email, phone };
+  }
+
+  private normalizeContactValue(value: unknown): string | null {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "Anonymous User") return null;
+    return trimmed;
+  }
+
+  private normalizeEmailValue(value: unknown): string | null {
+    const email = this.normalizeContactValue(value);
+    if (!email || email.toLowerCase() === "anonymous@temp.local") return null;
+    return email;
   }
 
   private buildUpdateSummary(input: UpdateTicketInput): string {

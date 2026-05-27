@@ -47,14 +47,14 @@ export const inviteAgent = asyncHandler(async (req: AuthenticatedRequest, res: R
 
 export const updateAgent = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const id = getParam(req.params.id);
-  const result = await adminService.updateAgent(req.user.activeOrganizationId, id, req.body);
+  const result = await adminService.updateAgent(req.user.activeOrganizationId, id, req.body, req.user.userId);
   if (!result.success) return sendError(res, (result as any).statusCode || 400, (result as any).message || "Update failed");
   sendResponse(res, 200, true, "Agent updated successfully", result.data);
 });
 
 export const deleteAgent = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const id = getParam(req.params.id);
-  const result = await adminService.deleteAgent(req.user.activeOrganizationId, id);
+  const result = await adminService.deleteAgent(req.user.activeOrganizationId, id, req.user.userId);
   if (!result.success) return sendError(res, (result as any).statusCode || 400, (result as any).message || "Delete failed");
   sendResponse(res, 200, true, "Agent removed from organization");
 });
