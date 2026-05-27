@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   Ticket as TicketIcon,
   AlertCircle,
-  Plus,
   Tag,
   MessageSquare,
   ClipboardList,
@@ -11,15 +10,19 @@ import {
   CheckCircle,
   Clock,
   User,
+  Mail,
+  Phone,
   ExternalLink,
   ChevronRight,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import io from "socket.io-client";
 import { membersApi } from "@/domains/member/api/members.api";
+import { ticketsApi } from "../api/tickets.api";
 import type { Ticket } from "../types/types";
 import type { Member } from "@/domains/member/types/types";
 import {
   useTickets,
-  useCreateTicket,
   useUpdateTicket,
   useAddTicketNote,
   useAssignTicket,
@@ -29,7 +32,7 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Textarea } from "@/shared/ui/textarea";
 import { Label } from "@/shared/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/shared/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import {
   Pagination,
   PaginationContent,
@@ -40,7 +43,26 @@ import {
   PaginationPrevious,
 } from "@/shared/ui/pagination";
 
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3002";
+
+const mergeRequesterContact = (current: Ticket | null, updated: Ticket): Ticket => ({
+  ...updated,
+  requesterContact:
+    updated.requesterContact ??
+    (current?.id === updated.id ? current.requesterContact : undefined),
+});
+
+const contactValue = (value?: string | null) => {
+  const trimmed = value?.trim();
+  return trimmed || "Not provided";
+};
+
+type TicketStatus = Ticket["status"];
+type TicketPriority = Ticket["priority"];
+
 export function TicketsPage() {
+  const queryClient = useQueryClient();
+
   // State for members (for assignment dropdown)
   const [members, setMembers] = useState<Member[]>([]);
 
@@ -51,15 +73,9 @@ export function TicketsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // State for creating a ticket
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newTicketTitle, setNewTicketTitle] = useState("");
-  const [newTicketDesc, setNewTicketDesc] = useState("");
-  const [newTicketPriority, setNewTicketPriority] = useState<"low" | "medium" | "high" | "urgent">("medium");
-  const [newTicketTags, setNewTicketTags] = useState("");
-
   // State for viewing ticket details (drawer/modal)
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [loadingTicketDetails, setLoadingTicketDetails] = useState<string | null>(null);
   const [newNoteContent, setNewNoteContent] = useState("");
 
   // React Query Hooks
@@ -80,11 +96,32 @@ export function TicketsPage() {
   const totalTickets = ticketsData?.data?.total || 0;
   const totalPages = ticketsData?.data?.pages || 1;
 
-  const createTicketMutation = useCreateTicket();
   const assignTicketMutation = useAssignTicket();
   const updateStatusMutation = useUpdateTicketStatus();
   const updateTicketMutation = useUpdateTicket();
   const addNoteMutation = useAddTicketNote();
+
+  const openTicketDetails = async (ticket: Ticket) => {
+    setSelectedTicket(ticket);
+    setLoadingTicketDetails(ticket.id);
+
+    try {
+      const response = await queryClient.fetchQuery({
+        queryKey: ["ticket", ticket.id],
+        queryFn: () => ticketsApi.getTicket(ticket.id),
+      });
+
+      if (response.success && response.data?.ticket) {
+        setSelectedTicket((current) =>
+          current?.id === ticket.id ? response.data.ticket : current,
+        );
+      }
+    } catch (error) {
+      console.error("Failed to fetch ticket details:", error);
+    } finally {
+      setLoadingTicketDetails((current) => (current === ticket.id ? null : current));
+    }
+  };
 
   const fetchMembers = async () => {
     try {
@@ -105,6 +142,31 @@ export function TicketsPage() {
     fetchMembers();
   }, []);
 
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("ticket_updated", (payload: { ticket?: Ticket }) => {
+      const ticket = payload?.ticket;
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+
+      if (ticket) {
+        setSelectedTicket((current) =>
+          current?.id === ticket.id ? mergeRequesterContact(current, ticket) : current,
+        );
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [queryClient]);
+
   // Handle Ticket Assignment
   const handleAssignTicket = (ticketId: string, memberUserId: string | null) => {
     assignTicketMutation.mutate(
@@ -114,7 +176,9 @@ export function TicketsPage() {
           if (res.success && res.data?.ticket) {
             const updated = res.data.ticket;
             if (selectedTicket && selectedTicket.id === ticketId) {
-              setSelectedTicket(updated);
+              setSelectedTicket((current) =>
+                current?.id === ticketId ? mergeRequesterContact(current, updated) : current,
+              );
             }
           }
         },
@@ -131,7 +195,9 @@ export function TicketsPage() {
           if (res.success && res.data?.ticket) {
             const updated = res.data.ticket;
             if (selectedTicket && selectedTicket.id === ticketId) {
-              setSelectedTicket(updated);
+              setSelectedTicket((current) =>
+                current?.id === ticketId ? mergeRequesterContact(current, updated) : current,
+              );
             }
           }
         },
@@ -148,38 +214,11 @@ export function TicketsPage() {
           if (res.success && res.data?.ticket) {
             const updated = res.data.ticket;
             if (selectedTicket && selectedTicket.id === ticketId) {
-              setSelectedTicket(updated);
+              setSelectedTicket((current) =>
+                current?.id === ticketId ? mergeRequesterContact(current, updated) : current,
+              );
             }
           }
-        },
-      }
-    );
-  };
-
-  // Handle Creating Ticket
-  const handleCreateTicket = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTicketTitle.trim()) return;
-
-    const tagsArray = newTicketTags
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-
-    createTicketMutation.mutate(
-      {
-        title: newTicketTitle,
-        description: newTicketDesc || undefined,
-        priority: newTicketPriority,
-        tags: tagsArray,
-      },
-      {
-        onSuccess: () => {
-          setIsCreateOpen(false);
-          setNewTicketTitle("");
-          setNewTicketDesc("");
-          setNewTicketPriority("medium");
-          setNewTicketTags("");
         },
       }
     );
@@ -195,7 +234,11 @@ export function TicketsPage() {
       {
         onSuccess: (res) => {
           if (res.success && res.data?.ticket) {
-            setSelectedTicket(res.data.ticket);
+            setSelectedTicket((current) =>
+              current?.id === res.data.ticket.id
+                ? mergeRequesterContact(current, res.data.ticket)
+                : current,
+            );
             setNewNoteContent("");
           }
         },
@@ -377,90 +420,6 @@ export function TicketsPage() {
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="cursor-pointer">
-                <Plus className="h-4 w-4 mr-1.5" />
-                Create Ticket
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg bg-card border-border">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <TicketIcon className="h-5 w-5 text-primary" />
-                  Create Support Ticket
-                </DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleCreateTicket} className="space-y-4 pt-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="title">Ticket Title</Label>
-                  <Input
-                    id="title"
-                    required
-                    placeholder="Short summary of the issue..."
-                    value={newTicketTitle}
-                    onChange={(e) => setNewTicketTitle(e.target.value)}
-                    className="cursor-text"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="description">Detailed Description</Label>
-                  <Textarea
-                    id="description"
-                    rows={4}
-                    placeholder="Steps to reproduce, user context, or support notes..."
-                    value={newTicketDesc}
-                    onChange={(e) => setNewTicketDesc(e.target.value)}
-                    className="cursor-text"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="priority">Priority</Label>
-                    <select
-                      id="priority"
-                      value={newTicketPriority}
-                      onChange={(e) => setNewTicketPriority(e.target.value as any)}
-                      className="w-full h-8 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="tags">Tags (comma separated)</Label>
-                    <Input
-                      id="tags"
-                      placeholder="bug, billing, v1"
-                      value={newTicketTags}
-                      onChange={(e) => setNewTicketTags(e.target.value)}
-                      className="cursor-text"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateOpen(false)}
-                    className="cursor-pointer"
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={createTicketMutation.isPending} className="cursor-pointer">
-                    {createTicketMutation.isPending ? "Creating..." : "Create Ticket"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
@@ -598,7 +557,7 @@ export function TicketsPage() {
             <AlertCircle className="h-10 w-10 text-muted-foreground/45 mb-3" />
             <h5 className="font-semibold text-base">No tickets found</h5>
             <p className="text-sm text-muted-foreground mt-1">
-              Try adjusting your filter settings or create a new support ticket.
+              Try adjusting your filter settings. New tickets will appear here as they arrive.
             </p>
           </div>
         ) : (
@@ -619,7 +578,7 @@ export function TicketsPage() {
                 {filteredTickets.map((ticket) => (
                   <tr
                     key={ticket.id}
-                    onClick={() => setSelectedTicket(ticket)}
+                    onClick={() => void openTicketDetails(ticket)}
                     className="hover:bg-muted/50 dark:hover:bg-muted/30 cursor-pointer select-none transition-all duration-150 group/row border-b border-border/40 last:border-0"
                   >
                     <td className="p-3 font-mono text-xs font-semibold text-primary/80">
@@ -672,7 +631,7 @@ export function TicketsPage() {
                       <Button
                         size="xs"
                         variant="ghost"
-                        onClick={() => setSelectedTicket(ticket)}
+                        onClick={() => void openTicketDetails(ticket)}
                         className="cursor-pointer"
                       >
                         Details
@@ -688,15 +647,16 @@ export function TicketsPage() {
 
         {/* Pagination using shared Pagination components */}
         {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between border-t border-border/40 pt-4 mt-4 gap-4">
-            <p className="text-xs text-muted-foreground">
+          <div className="grid grid-cols-1 sm:grid-cols-3 items-center border-t border-border/40 pt-4 mt-4 gap-4">
+            <p className="text-xs text-muted-foreground text-center sm:text-left">
               Showing page {currentPage} of {totalPages}
             </p>
-            <Pagination className="w-auto mx-0">
+            <Pagination className="w-auto mx-auto justify-center">
               <PaginationContent>
                 {renderPaginationItems()}
               </PaginationContent>
             </Pagination>
+            <div className="hidden sm:block" />
           </div>
         )}
       </div>
@@ -709,266 +669,327 @@ export function TicketsPage() {
             if (!open) setSelectedTicket(null);
           }}
         >
-          <DialogContent className="sm:max-w-5xl md:max-w-6xl w-[92vw] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-card border-border">
-            <DialogHeader className="px-6 py-4 border-b border-border bg-muted/20 shrink-0">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-muted-foreground">
-                    Ticket #{selectedTicket.ticketNumber || selectedTicket.id.slice(-6).toUpperCase()}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {selectedTicket.conversationId && (
-                      <a
-                        href={`/dashboard/conversations/inbox/chat/${selectedTicket.conversationId}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-all mr-4 shadow-sm"
-                      >
-                        View Inbox Chat
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    )}
+          <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden border-border bg-background p-0 shadow-2xl sm:rounded-lg">
+            <DialogHeader className="border-b border-border bg-card px-5 py-4 sm:px-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 font-mono text-xs font-semibold text-muted-foreground">
+                      <TicketIcon className="h-3.5 w-3.5" />
+                      #{selectedTicket.ticketNumber || selectedTicket.id.slice(-6).toUpperCase()}
+                    </span>
+                    {getStatusBadge(selectedTicket.status)}
+                    {getPriorityBadge(selectedTicket.priority)}
+                    <span className="inline-flex items-center rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium capitalize text-muted-foreground">
+                      {selectedTicket.source}
+                    </span>
                   </div>
+                  <DialogTitle className="text-xl font-semibold leading-tight tracking-normal text-foreground sm:text-2xl">
+                    {selectedTicket.title}
+                  </DialogTitle>
                 </div>
-                <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                  <TicketIcon className="h-5 w-5 text-primary" />
-                  {selectedTicket.title}
-                </DialogTitle>
+
+                <div className="flex shrink-0 flex-wrap items-center gap-2 pr-8">
+                  {selectedTicket.conversationId && (
+                    <a
+                      href={`/dashboard/conversations/inbox/chat/${selectedTicket.conversationId}`}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted"
+                    >
+                      View Inbox Chat
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </div>
               </div>
             </DialogHeader>
 
-            <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Main notes and activity feed */}
-              <div className="md:col-span-2 space-y-6 flex flex-col min-h-[400px]">
-                {/* Description block */}
-                <div className="space-y-1.5">
-                  <h5 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                    Description
-                  </h5>
-                  <div className="rounded-lg bg-muted/40 p-4 border border-border/40 text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+            <div className="grid max-h-[calc(92vh-96px)] grid-cols-1 overflow-y-auto bg-muted/20 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-w-0 space-y-5 p-4 sm:p-6">
+                <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h5 className="text-sm font-semibold text-foreground">Description</h5>
+                    {selectedTicket.tags && selectedTicket.tags.length > 0 && (
+                      <div className="hidden flex-wrap justify-end gap-1.5 sm:flex">
+                        {selectedTicket.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px] font-medium text-muted-foreground"
+                          >
+                            <Tag className="h-3 w-3" />
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-h-24 whitespace-pre-wrap rounded-md border border-border/70 bg-background p-4 text-sm leading-6 text-foreground">
                     {selectedTicket.description || (
                       <span className="italic text-muted-foreground">No description provided.</span>
                     )}
                   </div>
-                </div>
-
-                {/* Tag list */}
-                {selectedTicket.tags && selectedTicket.tags.length > 0 && (
-                  <div className="space-y-1.5">
-                    <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Categorization Tags
-                    </h5>
-                    <div className="flex flex-wrap gap-2">
+                  {selectedTicket.tags && selectedTicket.tags.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5 sm:hidden">
                       {selectedTicket.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-accent text-accent-foreground border border-primary/20 transition-all hover:bg-accent/80"
+                          className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px] font-medium text-muted-foreground"
                         >
-                          <Tag className="h-3 w-3 opacity-70" />
+                          <Tag className="h-3 w-3" />
                           {tag}
                         </span>
                       ))}
                     </div>
+                  )}
+                </section>
+
+                <section className="rounded-lg border border-border bg-card shadow-sm">
+                  <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h5 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                        Internal Notes & Activity
+                      </h5>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {selectedTicket.notes?.length
+                          ? `${selectedTicket.notes.length} internal update${selectedTicket.notes.length === 1 ? "" : "s"} recorded`
+                          : "No internal updates recorded"}
+                      </p>
+                    </div>
                   </div>
-                )}
 
-                {/* Notes/Activity history */}
-                <div className="flex-1 space-y-3 flex flex-col min-h-0">
-                  <h5 className="text-sm font-semibold text-foreground flex items-center gap-1.5 shrink-0">
-                    <MessageSquare className="h-4 w-4 text-primary" />
-                    Internal Notes & Activity Log
-                  </h5>
-
-                  <div className="flex-1 overflow-y-auto border border-border rounded-lg bg-background p-3 min-h-[200px] space-y-3">
+                  <div className="max-h-[36vh] min-h-56 overflow-y-auto p-4">
                     {selectedTicket.notes && selectedTicket.notes.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="relative space-y-5 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-border">
                         {selectedTicket.notes.map((note) => (
-                          <div
-                            key={note.id}
-                            className={`p-4 rounded-xl border text-sm leading-relaxed transition-all shadow-sm ${
-                              note.authorType === "ai"
-                                ? "bg-gradient-to-br from-violet-500/5 to-indigo-500/5 border-violet-500/20 dark:border-violet-500/30 shadow-violet-500/5"
-                                : "bg-muted/40 border-border/60"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="font-semibold text-foreground flex items-center gap-1.5">
-                                {note.authorType === "ai" && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-sm scale-90 uppercase tracking-wider">
-                                    AI
-                                  </span>
-                                )}
-                                {note.author}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground">
-                                {new Date(note.createdAt).toLocaleString()}
-                              </span>
+                          <div key={note.id} className="relative pl-7">
+                            <span
+                              className={`absolute left-0 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-card ${
+                                note.authorType === "ai" ? "bg-primary" : "bg-muted-foreground"
+                              }`}
+                            />
+                            <div className="rounded-lg border border-border bg-background p-3">
+                              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                                <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                  {note.authorType === "ai" && (
+                                    <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                      AI
+                                    </span>
+                                  )}
+                                  {note.author}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground">
+                                  {new Date(note.createdAt).toLocaleString()}
+                                </span>
+                              </div>
+                              <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                                {note.content}
+                              </p>
                             </div>
-                            <p className="text-foreground whitespace-pre-wrap">{note.content}</p>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-12 text-center h-full">
-                        <MessageSquare className="h-8 w-8 text-muted-foreground/35 mb-2" />
-                        <p className="text-xs text-muted-foreground">
-                          No notes have been added to this ticket yet.
-                        </p>
+                      <div className="flex min-h-44 items-center justify-center rounded-lg border border-dashed border-border bg-background">
+                        <div className="relative max-w-sm px-6 py-8 text-center">
+                          <div className="mx-auto mb-4 flex w-32 items-center justify-center">
+                            <span className="h-3 w-3 rounded-full bg-primary" />
+                            <span className="h-px flex-1 bg-border" />
+                            <span className="h-3 w-3 rounded-full border border-border bg-card" />
+                            <span className="h-px flex-1 bg-border" />
+                            <span className="h-3 w-3 rounded-full border border-border bg-card" />
+                          </div>
+                          <p className="text-sm font-medium text-foreground">No activity yet</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            Add the first internal note to create an audit trail for this ticket.
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
 
-                {/* Add a note form */}
-                <form onSubmit={handleAddNote} className="space-y-3 shrink-0">
-                  <Textarea
-                    placeholder="Type an internal note to log progress..."
-                    rows={2}
-                    value={newNoteContent}
-                    onChange={(e) => setNewNoteContent(e.target.value)}
-                    className="cursor-text text-sm"
-                  />
-                  <div className="flex justify-end">
-                    <Button
-                      type="submit"
-                      size="sm"
-                      disabled={addNoteMutation.isPending || !newNoteContent.trim()}
-                      className="cursor-pointer"
-                    >
-                      {addNoteMutation.isPending ? "Adding Note..." : "Add Internal Note"}
-                    </Button>
-                  </div>
-                </form>
+                  <form onSubmit={handleAddNote} className="border-t border-border p-4">
+                    <Textarea
+                      placeholder="Add an internal note..."
+                      rows={3}
+                      value={newNoteContent}
+                      onChange={(e) => setNewNoteContent(e.target.value)}
+                      className="min-h-20 resize-none cursor-text bg-background text-sm"
+                    />
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={addNoteMutation.isPending || !newNoteContent.trim()}
+                        className="cursor-pointer"
+                      >
+                        {addNoteMutation.isPending ? "Adding..." : "Add Note"}
+                      </Button>
+                    </div>
+                  </form>
+                </section>
               </div>
 
-              {/* Sidebar metadata & status controls */}
-              <div className="space-y-6 border-l border-border pl-0 md:pl-6">
-                {/* Status card */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Ticket Status
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    {getStatusBadge(selectedTicket.status)}
+              <aside className="space-y-4 border-t border-border bg-card p-4 sm:p-6 lg:border-l lg:border-t-0">
+                <section className="rounded-lg border border-border bg-background p-4">
+                  <h6 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Management
+                  </h6>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-muted-foreground">
+                        Status
+                      </Label>
+                      <select
+                        value={selectedTicket.status}
+                        onChange={(e) =>
+                          handleUpdateStatus(selectedTicket.id, e.target.value as TicketStatus)
+                        }
+                        className="h-8 w-full cursor-pointer rounded-md border border-input bg-background px-2.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-muted-foreground">
+                        Priority
+                      </Label>
+                      <select
+                        value={selectedTicket.priority}
+                        onChange={(e) =>
+                          handleUpdatePriority(selectedTicket.id, e.target.value as TicketPriority)
+                        }
+                        className="h-8 w-full cursor-pointer rounded-md border border-input bg-background px-2.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-muted-foreground">
+                        Assignment
+                      </Label>
+                      <select
+                        value={selectedTicket.assignedTo?.id || ""}
+                        onChange={(e) =>
+                          handleAssignTicket(selectedTicket.id, e.target.value || null)
+                        }
+                        className="h-8 w-full cursor-pointer rounded-md border border-input bg-background px-2.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <option value="">Unassigned</option>
+                        {members.map((m) => (
+                          <option key={m.user._id} value={m.user._id}>
+                            {m.user.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <select
-                    value={selectedTicket.status}
-                    onChange={(e) =>
-                      handleUpdateStatus(selectedTicket.id, e.target.value as any)
-                    }
-                    className="w-full h-8 cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="open">Open</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                </div>
+                </section>
 
-                {/* Priority selector */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Priority Level
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    {getPriorityBadge(selectedTicket.priority)}
-                  </div>
-                  <select
-                    value={selectedTicket.priority}
-                    onChange={(e) =>
-                      handleUpdatePriority(selectedTicket.id, e.target.value as any)
-                    }
-                    className="w-full h-8 cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
-
-                {/* Assign Agent card */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Assigned Agent
-                  </Label>
-                  <div className="text-xs text-foreground mb-1.5 flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    {selectedTicket.assignedTo ? (
-                      <div>
-                        <p className="font-semibold">{selectedTicket.assignedTo.name}</p>
-                        <p className="text-muted-foreground text-[10px]">{selectedTicket.assignedTo.email}</p>
-                      </div>
-                    ) : (
-                      <span className="italic text-muted-foreground font-medium">Unassigned / Awaiting Claim</span>
+                <section className="rounded-lg border border-border bg-background p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h6 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Requester
+                    </h6>
+                    {loadingTicketDetails === selectedTicket.id && (
+                      <span className="text-[10px] font-medium text-muted-foreground">Loading...</span>
                     )}
                   </div>
-                  <select
-                    value={selectedTicket.assignedTo?.id || ""}
-                    onChange={(e) =>
-                      handleAssignTicket(selectedTicket.id, e.target.value || null)
-                    }
-                    className="w-full h-8 cursor-pointer rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">Unassigned</option>
-                    {members.map((m) => (
-                      <option key={m.user._id} value={m.user._id}>
-                        {m.user.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-sm font-semibold text-foreground">
+                      {contactValue(selectedTicket.requesterContact?.fullName).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">
+                        {contactValue(selectedTicket.requesterContact?.fullName)}
+                      </p>
+                      <div className="mt-3 space-y-2 text-xs">
+                        <p className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{contactValue(selectedTicket.requesterContact?.email)}</span>
+                        </p>
+                        <p className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                          <Phone className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{contactValue(selectedTicket.requesterContact?.phone)}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
 
-                {/* Metadata card */}
-                <div className="space-y-3 rounded-lg border border-border/80 bg-muted/30 p-4">
-                  <h6 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    Metadata Details
+                <section className="rounded-lg border border-border bg-background p-4">
+                  <h6 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Assigned Agent
                   </h6>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Source:</span>
-                      <span className="font-medium capitalize">{selectedTicket.source}</span>
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-sm font-semibold text-foreground">
+                      {(selectedTicket.assignedTo?.name || "U").charAt(0).toUpperCase()}
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Created At:</span>
-                      <span className="font-medium text-right">
+                    <div className="min-w-0 flex-1">
+                      {selectedTicket.assignedTo ? (
+                        <>
+                          <p className="truncate text-sm font-semibold text-foreground">
+                            {selectedTicket.assignedTo.name}
+                          </p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {selectedTicket.assignedTo.email}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-semibold text-foreground">Unassigned</p>
+                          <p className="mt-1 text-xs text-muted-foreground">Awaiting claim</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-lg border border-border bg-background p-4">
+                  <h6 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Ticket Details
+                  </h6>
+                  <dl className="space-y-2.5 text-xs">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Source</dt>
+                      <dd className="font-medium capitalize text-foreground">{selectedTicket.source}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Created</dt>
+                      <dd className="text-right font-medium text-foreground">
                         {new Date(selectedTicket.createdAt).toLocaleString()}
-                      </span>
+                      </dd>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Last Updated:</span>
-                      <span className="font-medium text-right">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Updated</dt>
+                      <dd className="text-right font-medium text-foreground">
                         {new Date(selectedTicket.updatedAt).toLocaleString()}
-                      </span>
+                      </dd>
                     </div>
                     {selectedTicket.resolvedAt && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Resolved At:</span>
-                        <span className="font-medium text-right text-success">
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-muted-foreground">Resolved</dt>
+                        <dd className="text-right font-medium text-success">
                           {new Date(selectedTicket.resolvedAt).toLocaleString()}
-                        </span>
+                        </dd>
                       </div>
                     )}
                     {selectedTicket.closedAt && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Closed At:</span>
-                        <span className="font-medium text-right text-muted-foreground">
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-muted-foreground">Closed</dt>
+                        <dd className="text-right font-medium text-muted-foreground">
                           {new Date(selectedTicket.closedAt).toLocaleString()}
-                        </span>
+                        </dd>
                       </div>
                     )}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setSelectedTicket(null)}
-                    className="w-full cursor-pointer"
-                  >
-                    Close Drawer
-                  </Button>
-                </div>
-              </div>
+                  </dl>
+                </section>
+              </aside>
             </div>
           </DialogContent>
         </Dialog>

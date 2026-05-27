@@ -5,7 +5,7 @@ import { AuthenticatedRequest } from "@shared/security/middleware/auth";
 import { getSocketManager } from "@sockets/index";
 import logger from "@shared/core/logger";
 import { tracker } from "@shared/utils/tracker";
-import { Message } from "@shared/models";
+import { Conversation, Message } from "@shared/models";
 
 const conversationService = new ConversationService();
 
@@ -258,6 +258,9 @@ export const aiGetMemory = asyncHandler(async (req: Request, res: Response) => {
     .sort({ createdAt: -1 })
     .limit(Number(limit) || 10)
     .lean();
+  const conversation = await Conversation.findOne({ _id: conversationId, organizationId })
+    .select("visitor.name visitor.email")
+    .lean();
 
   const memory = messages.reverse().map((m) => ({
     role: m.metadata?.source === "widget" ? "user" : "assistant",
@@ -266,7 +269,19 @@ export const aiGetMemory = asyncHandler(async (req: Request, res: Response) => {
     timestamp: m.createdAt,
   }));
 
-  sendResponse(res, 200, true, "Conversation memory fetched", { memory });
+  sendResponse(res, 200, true, "Conversation memory fetched", {
+    memory,
+    visitor: {
+      name:
+        conversation?.visitor?.name && conversation.visitor.name !== "Anonymous User"
+          ? conversation.visitor.name
+          : null,
+      email:
+        conversation?.visitor?.email && conversation.visitor.email !== "anonymous@temp.local"
+          ? conversation.visitor.email
+          : null,
+    },
+  });
 });
 
 // ─── AI-Internal: Escalate to Human ──────────────────────────────────────────

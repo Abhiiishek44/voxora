@@ -86,25 +86,6 @@ export class MarkQueryResolvedTool implements Tool {
         resolutionEntry,
       });
 
-      // 2. Automatically create a Resolved Ticket in CRM for audit trail
-      try {
-        const ticketTitle = summary || reason || query || "AI Resolved Query";
-        const ticketDescription = `Issue successfully resolved by AI during conversation chat.\n\nQuery: "${query || summary}"\nResolution Reason: ${reason || summary}`;
-
-        await internalApi.post("/tickets/ai", {
-          organizationId,
-          conversationId,
-          title: ticketTitle,
-          description: ticketDescription,
-          status: "resolved",
-          priority: "medium",
-          tags: ["ai-resolved"],
-        });
-      } catch (ticketErr: any) {
-        console.error(`[Resolution] Failed to auto-create resolved ticket: ${ticketErr?.response?.data?.message || ticketErr.message}`);
-        // Do not fail the whole resolution execution if ticket creation fails
-      }
-
       return { status: "ok", resolutionId };
     } catch (e: any) {
       return {

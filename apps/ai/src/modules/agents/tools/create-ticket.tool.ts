@@ -23,6 +23,16 @@ export class CreateTicketTool implements Tool {
       required: false,
       enum: ["low", "medium", "high", "urgent"],
     },
+    requesterName: {
+      type: "string",
+      description: "User's full name. Reuse a name already provided earlier in the conversation.",
+      required: true,
+    },
+    requesterEmail: {
+      type: "string",
+      description: "User's email address. Reuse an email already provided earlier in the conversation.",
+      required: true,
+    },
     tags: {
       type: "array",
       description: "Relevant tags for categorization (e.g., ['bug', 'billing', 'feature-request']). You must analyze the title and description to extract 1-3 relevant tags to help categorize the issue.",
@@ -44,7 +54,30 @@ export class CreateTicketTool implements Tool {
   async execute(args: Record<string, unknown>, context?: ToolExecutionContext): Promise<unknown> {
     try {
       const title = typeof args.title === "string" ? args.title.trim() : "";
-      if (!title) return { status: "error", message: "title is required" };
+      const description = typeof args.description === "string" ? args.description.trim() : "";
+      const requesterName = typeof args.requesterName === "string" ? args.requesterName.trim() : "";
+      const requesterEmail = typeof args.requesterEmail === "string" ? args.requesterEmail.trim().toLowerCase() : "";
+      const missingFields = [];
+
+      if (!requesterName) missingFields.push("full name");
+      if (!requesterEmail) missingFields.push("email address");
+      if (!title && !description) missingFields.push("issue details");
+
+      if (missingFields.length > 0) {
+        return {
+          status: "missing_required_fields",
+          missingFields,
+          message: `Missing required ticket information: ${missingFields.join(", ")}`,
+        };
+      }
+
+      if (!this.isValidEmail(requesterEmail)) {
+        return {
+          status: "invalid_email",
+          message: "A valid email address is required before creating a ticket",
+        };
+      }
+      const ticketTitle = title || description.slice(0, 120);
 
       const organizationId =
         (typeof args.organizationId === "string" ? args.organizationId : "") || context?.organizationId || "";
@@ -77,10 +110,15 @@ export class CreateTicketTool implements Tool {
       const payload = {
         organizationId,
         conversationId: conversationId || undefined,
-        title,
-        description: typeof args.description === "string" ? args.description.trim() : undefined,
+        title: ticketTitle,
+        description: description || undefined,
         priority: typeof args.priority === "string" ? args.priority : "medium",
+        requesterName,
+        requesterEmail,
         tags,
+        idempotencyKey: context?.messageId
+          ? `ai:create_ticket:${organizationId}:${conversationId || "no-conversation"}:${context.messageId}`
+          : undefined,
       };
 
       const response = await internalApi.post(`/tickets/ai`, payload);
@@ -95,5 +133,9 @@ export class CreateTicketTool implements Tool {
     } catch (e: any) {
       return { status: "error", message: e?.response?.data?.message || e.message || "Failed to create ticket" };
     }
+  }
+
+  private isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 }

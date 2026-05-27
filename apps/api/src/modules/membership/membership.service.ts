@@ -1,6 +1,7 @@
 import { Membership, User, MembershipRole, IMembership, Organization } from "@shared/models";
 import { Types } from "mongoose";
 import { enqueueInviteEmail } from "@shared/queues/email.queue";
+import NotificationService from "@modules/notification/notification.service";
 import crypto from "crypto";
 
 export class MembershipService {
@@ -89,6 +90,18 @@ export class MembershipService {
             org?.name || "Your Organization",
             data.role,
             inviteToken,
+        );
+
+        await this.notifyRoleManagementAction(
+            organizationId,
+            invitedByUserId,
+            `Created ${this.displayName(user.name, data.email)} as ${this.roleLabel(data.role)}.`,
+            {
+                action: "member_created",
+                targetUserId: user._id.toString(),
+                targetMembershipId: membership._id.toString(),
+                role: data.role,
+            },
         );
 
         return { membership, inviteToken, emailSent };
@@ -220,11 +233,28 @@ export class MembershipService {
             }
         }
 
+        const targetUser = await User.findById(targetMembership.userId).select("name email").lean();
         const membership = await Membership.findOneAndUpdate(
             { _id: targetMemberId, organizationId },
             { role: newRole },
             { new: true },
         );
+
+        if (membership) {
+            const targetName = this.displayName(targetUser?.name, targetUser?.email);
+            await this.notifyRoleManagementAction(
+                organizationId,
+                requestingUserId,
+                `Updated ${this.possessive(targetName)} role to ${this.roleLabel(newRole)}.`,
+                {
+                    action: "role_updated",
+                    targetUserId: targetMembership.userId.toString(),
+                    targetMembershipId: targetMembership._id.toString(),
+                    previousRole: targetMembership.role,
+                    role: newRole,
+                },
+            );
+        }
 
         return membership;
     }
@@ -259,11 +289,27 @@ export class MembershipService {
             throw new Error("Admins cannot modify owner status");
         }
 
+        const targetUser = await User.findById(targetMembership.userId).select("name email").lean();
         const membership = await Membership.findOneAndUpdate(
             { _id: targetMemberId, organizationId },
             { inviteStatus: newStatus },
             { new: true },
         );
+
+        if (membership) {
+            const verb = newStatus === "active" ? "reactivated" : "suspended";
+            await this.notifyRoleManagementAction(
+                organizationId,
+                requestingUserId,
+                `${this.capitalize(verb)} ${this.displayName(targetUser?.name, targetUser?.email)}.`,
+                {
+                    action: newStatus === "active" ? "member_reactivated" : "member_suspended",
+                    targetUserId: targetMembership.userId.toString(),
+                    targetMembershipId: targetMembership._id.toString(),
+                    status: newStatus,
+                },
+            );
+        }
 
         return membership;
     }
@@ -293,10 +339,54 @@ export class MembershipService {
             }
         }
 
+        const targetUser = await User.findById(targetMembership.userId).select("name email").lean();
         await Membership.findByIdAndDelete(targetMembership._id);
+        await this.notifyRoleManagementAction(
+            organizationId,
+            requestingUserId,
+            `Removed ${this.displayName(targetUser?.name, targetUser?.email)} from the organization.`,
+            {
+                action: "member_removed",
+                targetUserId: targetMembership.userId.toString(),
+                targetMembershipId: targetMembership._id.toString(),
+                role: targetMembership.role,
+            },
+        );
     }
 
     // ─── Helpers ───
+
+    private static async notifyRoleManagementAction(
+        organizationId: string,
+        actorUserId: string,
+        description: string,
+        metadata: Record<string, unknown>,
+    ) {
+        await NotificationService.create({
+            organizationId,
+            userId: actorUserId,
+            type: "administrative",
+            title: "Role Management",
+            description,
+            metadata,
+        });
+    }
+
+    private static displayName(name?: string, fallback?: string): string {
+        return (name || fallback || "this user").trim();
+    }
+
+    private static possessive(name: string): string {
+        return name.endsWith("s") ? `${name}'` : `${name}'s`;
+    }
+
+    private static roleLabel(role: MembershipRole): string {
+        return role.charAt(0).toUpperCase() + role.slice(1);
+    }
+
+    private static capitalize(value: string): string {
+        return value.charAt(0).toUpperCase() + value.slice(1);
+    }
 
     private static defaultPermissionsForRole(role: MembershipRole): string[] {
         if (role === "owner") {

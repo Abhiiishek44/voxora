@@ -93,6 +93,18 @@ export class GeminiProvider implements LLMProvider {
     const MAX_TOOL_LOOPS = 5;
     let fullTextResponse = "";
     let usage: LLMTokenUsage | undefined;
+    const createTicketResults = new Map<string, unknown>();
+
+    const createTicketRequestKey = (call: any): string | null => {
+        if (call.name !== "create_ticket") return null;
+
+        const messageId = toolContext?.messageId;
+        if (!messageId) return null;
+
+        const organizationId = toolContext?.organizationId || call.args?.organizationId || "";
+        const conversationId = toolContext?.conversationId || call.args?.conversationId || "";
+        return `${organizationId}:${conversationId}:${messageId}`;
+    };
 
     for (let loop = 0; loop < MAX_TOOL_LOOPS; loop++) {
         fullTextResponse = ""; 
@@ -164,7 +176,16 @@ export class GeminiProvider implements LLMProvider {
                     }
                 }
                 try {
-                    const result = await tool.execute(call.args, toolContext);
+                    const requestKey = createTicketRequestKey(call);
+                    let result: unknown;
+                    if (requestKey && createTicketResults.has(requestKey)) {
+                        result = createTicketResults.get(requestKey);
+                    } else {
+                        result = await tool.execute(call.args, toolContext);
+                        if (requestKey) {
+                            createTicketResults.set(requestKey, result);
+                        }
+                    }
                     functionResponses.push({
                         role: "user", // The sdk treats functionResponse as coming from 'user' role
                         parts: [{

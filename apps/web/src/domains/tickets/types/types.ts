@@ -6,6 +6,12 @@ export interface TicketNote {
   createdAt: string;
 }
 
+export interface TicketRequesterContact {
+  fullName: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
 export interface Ticket {
   id: string;
   ticketNumber: string;
@@ -27,6 +33,7 @@ export interface Ticket {
   resolutionNote: string | null;
   resolvedAt: string | null;
   closedAt: string | null;
+  requesterContact?: TicketRequesterContact;
   createdAt: string;
   updatedAt: string;
 }
