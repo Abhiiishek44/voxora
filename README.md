@@ -26,7 +26,7 @@
 ⚙️ Designed to be flexible, scalable, and effortlessly integrable.
 <hr/>
 
-<img width="1536" height="1024" alt="architecture" src="https://github.com/user-attachments/assets/a3761df4-a295-4963-9d10-77322fb9a072" />
+<img width="1536" height="1024" alt="tech-poster" src="https://github.com/user-attachments/assets/fd53d983-e9f6-4677-83f6-83df4a3b5f5f" />
 
 
 ## 🚀 Quick One Click Dev Setup
