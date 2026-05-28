@@ -1,5 +1,3 @@
-<div id="top"></div>
-
 <p align="center">⭐️ Help us grow - Star us on GitHub! ⭐️</p>
 
 <p align="center">
@@ -11,18 +9,17 @@
 <h3 align="center">InteraOne</h3>
 
 <p align="center">
-  Open Source End-to-End Customer Support Automation
+  AI Copilot for your Product
   <br />
   <a href="https://interaOne.com/">Website</a> · 
   <a href="https://github.com/interaOne-com/interaOne/issues">Report Bug</a> · 
   <a href="https://github.com/interaOne-com/interaOne/issues">Request Feature</a>
 </p>
 
-
 ## ✨ About InteraOne
 
 <!-- <img width="1895" height="969" alt="interaOne Customer Support Platform" src="https://github.com/user-attachments/assets/7060ece4-0308-4b94-9d47-9f1655244a6e" /> -->
-<img width="1536" height="1024" alt="ChatGPT Image Apr 27, 2026, 09_46_02 AM" src="https://github.com/user-attachments/assets/5766832d-8482-4db9-bbd0-130f4b3f32b0" />
+<img width="1536" height="1024" alt="POSTER" src="https://github.com/user-attachments/assets/db2c29a2-1c50-49f7-bfa0-513d8585c86b" />
 <hr/>
 ✨ InteraOne is an open-source platform built to automate the entire customer support lifecycle. <br/>
 🔄 From initial touchpoint to resolution, every interaction is handled seamlessly. </br>
