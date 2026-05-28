@@ -75,15 +75,6 @@ Thanks to these amazing people who are building InteraOne! 🚀
 </a>
 
 
-
-## 📝 License
-
-This project is licensed under the **InteraOne Custom License v1.0**. See the [LICENSE](LICENSE) file for details.
-
-
-
 ## 🌟 Star Us!
 
 If you find InteraOne useful, please consider giving us a star on GitHub! It helps us grow and improve the project.
-
-<p align="center">Made with ❤️ by the InteraOne team</p>
